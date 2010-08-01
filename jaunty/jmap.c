@@ -1,5 +1,6 @@
 //Functions for creating/loading/drawing/destroying quite a generic map.
 #include "jmap.h"
+#include "jen.h"
 #include <math.h>
 #include "SDL.h"
 #include <SDL_image.h>
@@ -187,6 +188,8 @@ jsides jmap_collision_detect(jmap *map, jactor *actor, jcoll *c_info,
             i, actor->px, actor->py, actor->x, actor->y,
             &(c_info->x), &(c_info->y));
 
+    c_info->c_type = A_T;
+
     return c_info->side;
 }
 
@@ -199,6 +202,8 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
     int dy = 1;
     int dx = 1;
     int i, j;
+
+
 
     unsigned char (*c_map)[map->w] = (unsigned char(*)[map->w])map->c_map;
 
@@ -235,30 +240,21 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
     }
 
     if(m < 0){
-        //if(dx < 0){
-            //dy *= -1; 
-            // for a positive gradient, progressing from left to right 
-            // y_lower = f(x), y_upper = f(x+1), but
-            // for a negative gradient these values will have to be swapped 
-            // around
             y_lower = &f_xplus1;
             y_upper = &f_x;
-       // }
-    }else{
-        //likewise when progress is made from right to left 
-        // y_lower = f(x+1) and y_upper = f(x)
-    //        dy *= -1;
-         //   y_lower = &f_xplus1;
-          //  y_upper = &f_x;
     }
 
     for(i = tile_x1; i != tile_x2 + dx; i+=dx){
         f_x = m * (double)i + c;
         f_xplus1 = m * (double)(i + 1) + c;
         for(j = tile_y1; j != tile_y2 + dy; j+=dy){
-            if(*y_lower <= (double)(j + 1) && *y_upper >= (double)j){
-                if(1 << c_map[j][i] & tile_mask)
+            /* addition/substraction of 0.00001 is necessary because of 
+             * rounding errors that can occur in the previous steps */
+            if(*y_lower <= (double)(j + 1.00001)
+                    && *y_upper >= (double)j - 0.00001){
+                if(1 << c_map[j][i] & tile_mask){
                     return j * map->w + i;
+                }
             }
         }
     }
@@ -266,11 +262,11 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
     return -1;
 }
 
-jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,
+jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,       
         double x1, double y1, double x2, double y2, 
         double *x, double *y)
 {
-    /* Calculate coordinates of the verticies of the tile */
+    /* Calculate coordinates of the verticies of the tile */                 
     double tile_xmin = (tile_index % map->w) * map->tw;
     double tile_xmax = (tile_xmin + map->tw);
     double tile_ymin = (tile_index / map->w) * map->th;
@@ -295,6 +291,7 @@ jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,
     }
 
     //check for intersection with bottom
+    
     if(lines_intersect(x1, y1, x2, y2, tile_xmin, tile_ymax, tile_xmax,
                 tile_ymax, &x_intersect[i], &y_intersect[i]) == 1){
         collision_side[i] = BOTTOM;
@@ -305,9 +302,11 @@ jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,
             collision_side[i] |= RIGHT;
         i++;
     }
+    
 
     //check for intersection with left
     if(!(collision_side[0]&LEFT) && i<2){
+          
         if(lines_intersect(x1, y1, x2, y2, tile_xmin, tile_ymin, tile_xmin,
                     tile_ymax, &x_intersect[i], &y_intersect[i]) == 1){
             collision_side[i] = LEFT;

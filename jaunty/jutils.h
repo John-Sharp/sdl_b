@@ -3,6 +3,8 @@
 #ifndef JUTILS_H
 #define JUTILS_H
 
+#define magnitude(a, b) sqrt(pow(a, 2) + pow(b, 2))
+
 //sets the variables pointed to by 'm' and 'c' to the value of the 
 //gradient and y intercept of the line described between the points
 //(x1, y1) and (x2, y2)

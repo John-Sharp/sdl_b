@@ -6,6 +6,10 @@
 
 #include "SDL.h"
 #include "jactor.h"
+#include "jen.h"
+
+//typedef struct jcoll jcoll;
+//typedef enum jsides jsides;
 
 typedef struct jmap
 {
@@ -17,28 +21,6 @@ typedef struct jmap
 	SDL_Surface	*tilepalette;		/* Tile palette image */
 } jmap;
 
-
-typedef enum {
-    NONE = 0,
-    TOP = 0x1,
-    TOPRIGHT = 0x11,
-    RIGHT = 0x10,
-    BOTTOMRIGHT = 0x110,
-    BOTTOM = 0x100,
-    BOTTOMLEFT = 0x1100,
-    LEFT = 0x1000,
-    TOPLEFT = 0x1001,
-    MIDDLE = 0x10000
-} jsides;
-
-typedef struct jcoll
-{
-    double x, y; /* x, y coordinates of the collision */
-    unsigned char c_index; /* Index of the tile that was collided with */
-    jsides side; /* Side of the tile that was collided with */
-} jcoll;
-    
-    
 
 
 //frees all resources allocated to 'map'

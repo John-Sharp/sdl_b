@@ -14,6 +14,7 @@
 
 
 
+
 void calc_m_c(double x1, double y1, double x2, double y2, double *m, double *c)
 {
     /*calculate the denominator of the gradient of the line between
