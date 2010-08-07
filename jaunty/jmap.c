@@ -59,14 +59,12 @@ int jmap_load_tilepalette(jmap *map, const char *filename, int tw, int th)
 	map->tw = tw;
 	map->th = th;
 	tmp = IMG_Load(filename);
-	if(!tmp)
-	{
+	if(!tmp){
 		fprintf(stderr, "Could not load '%s'!\n", filename);
 		return -1;
 	}
 	map->tilepalette = SDL_DisplayFormat(tmp);
-	if(!map->tilepalette)
-	{
+	if(!map->tilepalette){
 		fprintf(stderr, "Could not convert '%s'!\n", filename);
 		return -1;
 	}

@@ -4,6 +4,7 @@
 #define JUTILS_H
 
 #define magnitude(a, b) sqrt(pow(a, 2) + pow(b, 2))
+#define bankround(a) ((a) - floor(a)  >= 0.5 ? ceil(a) : floor(a))
 
 //sets the variables pointed to by 'm' and 'c' to the value of the 
 //gradient and y intercept of the line described between the points

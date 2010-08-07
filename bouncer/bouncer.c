@@ -215,8 +215,7 @@ int main(int argc, char **argv)
 
     //set up screen
     screen = SDL_SetVideoMode(SCREEN_W, SCREEN_H, bpp, flags);
-    if(!screen)
-    {
+    if(!screen){
         fprintf(stderr, "Failed to open screen!\n");
         return 1;
     }
