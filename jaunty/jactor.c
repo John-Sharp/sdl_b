@@ -9,39 +9,29 @@
 
 void jactor_free(jactor *actor)
 {
-    SDL_FreeSurface(actor->sprite);
+    glDeleteTextures(1, &(actor->tex_name));
     free(actor);
 }
 
-jactor *jactor_create(int w, int h, const char *sprite_filename, double v_max,
-                      double a, void (*c_handler)(jactor *, jcoll *))
+jactor *jactor_create(int w, int h, const char *sprite_filename, 
+                      void (*c_handler)(jactor *, jcoll *))
 {
-    SDL_Surface *temp;
+    SDL_Surface *temp, *sprite;
+    SDL_Rect dst;
     jactor *actor;
+    int max_size, xpad, ypad;
+    Uint32 alpha;
 
 
-    if((actor = malloc(sizeof(*actor))) == NULL)
+    if((actor = malloc(sizeof(*actor))) == NULL){
+        fprintf(stderr, "Could not allocate memory for sprite\n");
         return NULL; 
-
-    temp = IMG_Load(sprite_filename);
-
-    if(!temp){
-        fprintf(stderr, "Error! Could not load %s\n", sprite_filename);
-        jactor_free(actor);
-        return NULL;
-    } 
-
-    actor->sprite = SDL_DisplayFormatAlpha(temp);
-    SDL_FreeSurface(temp);
-    if(!actor->sprite){
-        fprintf(stderr, "Error! Could not convert %s\n", sprite_filename);
-        return NULL;
     }
 
+
+    /* set initial values of actor's attributes */
     actor->w = w;
     actor->h = h;
-    actor->v_max = v_max;
-    actor->a = a;
 
     actor->v_x = 0;
     actor->v_y = 0;
@@ -52,31 +42,75 @@ jactor *jactor_create(int w, int h, const char *sprite_filename, double v_max,
 
     actor->c_handler = c_handler;
 
+    /* load image */
+    temp = IMG_Load(sprite_filename);
+
+    if(!temp){
+        fprintf(stderr, "Error! Could not load %s\n", sprite_filename);
+        jactor_free(actor);
+        return NULL;
+    } 
+
+
+    /* check it doesn't exceed the maximum texture size */
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
+
+    if ((temp->w > max_size) || (temp->h > max_size)) {
+        fprintf(stderr, "Image size exceeds max texture size\n");
+        SDL_FreeSurface(temp);
+        jactor_free(actor);
+        return NULL;
+    }
+
+    /* copy image onto a surface whose width and height are 
+     * both a power of two (as demanded by openGL) */
+    actor->p2w = mkp2(w);
+    actor->p2h = mkp2(h);
+
+    xpad = (actor->p2w - actor->w)/2;
+    ypad = (actor->p2h - actor->h)/2;
+
+    sprite = SDL_CreateRGBSurface(SDL_SWSURFACE, actor->p2w,
+            actor->p2h, 32, RMASK, GMASK, BMASK, AMASK);
+
+    alpha = SDL_MapRGBA(temp->format, 0, 0, 0, 0); 
+    SDL_FillRect(sprite, NULL, alpha); 
+    
+    if(!sprite){
+        fprintf(stderr, "Error creating a surface for the sprite\n");
+        SDL_FreeSurface(temp);
+        jactor_free(actor);
+        return NULL;
+    }
+
+    dst.x = xpad;
+    dst.y = ypad;
+    dst.w = actor->w;
+    dst.h = actor->h;
+
+    SDL_SetAlpha(temp, 0, SDL_ALPHA_OPAQUE);
+    SDL_BlitSurface(temp, 0, sprite, &dst); 
+    SDL_FreeSurface(temp);
+
+    /* create an openGL texture and bind the sprite's image
+     * to it */
+    glGenTextures(1, &(actor->tex_name));
+    glBindTexture(GL_TEXTURE_2D, actor->tex_name);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite->w, sprite->h,
+            0, GL_RGBA, GL_UNSIGNED_BYTE, sprite->pixels);
+
+    SDL_FreeSurface(sprite);
+
     return actor;
-}
-
-void jactor_set_direction(jactor *actor, double x, double y)
-{
-    double magnitude;
-
-    //at the moment velocity is set to 0 every time the direction 
-    //changes, maybe need to change this in future
-    actor->v_x = 0;
-    actor->v_y = 0;
-
-    magnitude = sqrt(pow(x, 2) + pow(y, 2));
-    actor->a_x = actor->a * x / magnitude;
-    actor->a_y = actor->a * y / magnitude;
-
-
-    return;
 }
 
 void jactor_iterate(jactor *actor)
 {
     actor->px = actor->x;
     actor->py = actor->y;
-
 
     actor->v_x += actor->a_x;
     actor->v_y += actor->a_y;
@@ -87,28 +121,50 @@ void jactor_iterate(jactor *actor)
     return;
 }
 
-SDL_Rect jactor_paint(jactor *actor, SDL_Surface *screen, double frames_so_far)
+void jactor_paint(jactor *actor, double frames_so_far)
 {
     double fframe = frames_so_far - floor(frames_so_far);
-    SDL_Rect src, dst;
 
 
-    src.x = 0;
-    src.y = 0;
-    src.w = actor->w;
-    src.h = actor->h;
-
+    /* calculating the point where the actor should be drawn */
     actor->gx  = actor->px * (1-fframe) + fframe * actor->x;
     actor->gy  = actor->py * (1-fframe) + fframe * actor->y;
 
-    dst.x = actor->gx - actor->w/2;
-    dst.y = actor->gy - actor->h/2;
-    dst.w = actor->w;
-    dst.h = actor->h;
+	
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
 
-    SDL_BlitSurface(actor->sprite, &src, screen, &dst);
+    /* translating the actor's matrix to the point where the 
+     * the actor should be drawn */
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glTranslatef(actor->gx , actor->gy , 0);
 
-    return dst;
+    /* loading the actor's texture */
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, actor->tex_name);
+
+    /* drawing the actor */
+    glBegin(GL_QUADS);
+
+    glTexCoord2f(0.0, 1.0);
+    glVertex3f(-(float)actor->p2w/2.0, -(float)actor->p2h/2.0, 0.0);
+
+    glTexCoord2f(0.0, 0.0);
+    glVertex3f(-(float)actor->p2w/2.0, (float)actor->p2h/2.0, 0.0);
+
+    glTexCoord2f(1.0, 0.0);
+    glVertex3f((float)actor->p2w/2.0, (float)actor->p2h/2.0, 0.0);
+
+    glTexCoord2f(1.0, 1.0);
+    glVertex3f((float)actor->p2w/2.0, -(float)actor->p2h/2.0, 0.0);
+
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
+
+	glDisable(GL_BLEND);
+    return;
 }
 
 

@@ -14,11 +14,16 @@
 typedef struct jmap
 {
 	int		w, h;		/* Size of map (tiles) */
+    int p2w, p2h;       /* Real size of map in pixels, rounded up to the
+                         * power of two as required by openGL */
 	unsigned char *map;		/* 2D array of tile indices */
     unsigned char *c_map; /*2D array of collision tags*/
 
 	int		tw, th;		/* Size of one tile (pixels) */
+
 	SDL_Surface	*tilepalette;		/* Tile palette image */
+
+    GLuint tex_name; /* texture containing the map */
 } jmap;
 
 
@@ -74,8 +79,8 @@ jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,
         double x1, double y1, double x2, double y2, 
         double *x, double *y);
 
-//Blits 'part' of the 'map' onto 'screen'
-void jmap_paint(jmap *map, SDL_Surface *screen, SDL_Rect *part);
+//paints the map onto the screen
+void jmap_paint(jmap *map);
 
 
 #endif

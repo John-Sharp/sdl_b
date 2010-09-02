@@ -138,7 +138,7 @@ void cast_actors(jen *engine)
     jactor *dot;
 
     //set up 'dot' actor
-    dot = jactor_create(50, 50, "circle.png", 10, 2, NULL);
+    dot = jactor_create(50, 50, "circle.png", dot_collider);
     dot->px = dot->x = 100;
     dot->py = dot->y = 250;
     dot->v_y = 0;
@@ -146,13 +146,12 @@ void cast_actors(jen *engine)
     dot->m = 5;
     dot->a_x = 0;
     dot->a_y = 0;
-    dot->c_handler = dot_collider;
 
     /* register the actor */
     jen_add_jactor(engine, dot);
 
     /* set up the second actor */
-    dot = jactor_create(50, 50, "circle2.png", 10, 2, NULL);
+    dot = jactor_create(50, 50, "circle2.png", dot_collider);
     dot->px = dot->x = 200;
     dot->py = dot->y = 250;
     dot->v_y = 0;
@@ -160,12 +159,11 @@ void cast_actors(jen *engine)
     dot->a_x = 0;
     dot->m = 5;
     dot->a_y = 0;
-    dot->c_handler = dot_collider;
 
     jen_add_jactor(engine, dot);
 
     /* set up the second actor */
-    dot = jactor_create(50, 50, "circle2.png", 10, 2, NULL);
+    dot = jactor_create(50, 50, "circle2.png", dot_collider);
     dot->px = dot->x = 250;
     dot->py = dot->y = 250;
     dot->v_y = 0;
@@ -173,12 +171,11 @@ void cast_actors(jen *engine)
     dot->a_x = 0;
     dot->m = 5;
     dot->a_y = 0;
-    dot->c_handler = dot_collider;
 
     jen_add_jactor(engine, dot);
 
     /* set up the second actor */
-    dot = jactor_create(50, 50, "circle2.png", 10, 2, NULL);
+    dot = jactor_create(50, 50, "circle2.png", dot_collider);
     dot->px = dot->x = 300;
     dot->py = dot->y = 250;
     dot->v_y = 0;
@@ -186,7 +183,6 @@ void cast_actors(jen *engine)
     dot->a_x = 0;
     dot->m = 5;
     dot->a_y = 0;
-    dot->c_handler = dot_collider;
 
     jen_add_jactor(engine, dot);
 
@@ -195,7 +191,7 @@ void cast_actors(jen *engine)
 
 int main(int argc, char **argv)
 {
-    int flags = SDL_DOUBLEBUF | SDL_HWSURFACE;
+    int flags = SDL_OPENGL;
     SDL_Surface *screen, *buffer;
     jmap *bg_map;
     int bpp = 0;
@@ -210,8 +206,17 @@ int main(int argc, char **argv)
     jen *engine;
 
 
-    SDL_Init(SDL_INIT_VIDEO);
+    if(SDL_Init(SDL_INIT_VIDEO) == -1){
+		fprintf(stderr, "Video initialization failed: %s\n", SDL_GetError());
+        return -1;
+    }
     atexit(SDL_Quit);
+
+	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 5);
+	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 5);
+	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 5);
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	
 
     //set up screen
     screen = SDL_SetVideoMode(SCREEN_W, SCREEN_H, bpp, flags);
@@ -219,6 +224,20 @@ int main(int argc, char **argv)
         fprintf(stderr, "Failed to open screen!\n");
         return 1;
     }
+
+
+    /* openGL initialisation */
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+//    glOrtho(-SCREEN_W/2, SCREEN_W/2,
+ //           -SCREEN_H/2, SCREEN_H/2, 1.0, -1.0);
+    glOrtho(0, SCREEN_W,
+            SCREEN_H, 0, 1.0, -1.0);
+
+
 
     buffer = SDL_CreateRGBSurface(SDL_SWSURFACE,
 				screen->w, screen->h,
@@ -235,8 +254,6 @@ int main(int argc, char **argv)
     }
 
 
-    dirty_r = jdirty_reset();
-
     /* set up background map */
     if(!(bg_map = jmap_create(SCREEN_W / TILE_W, SCREEN_H / TILE_H))){
         fprintf(stderr, "Error could not open jmap!\n");
@@ -249,10 +266,7 @@ int main(int argc, char **argv)
 
     load_level(bg_map, 1);
 
-    jmap_paint(bg_map, buffer, NULL);
-    SDL_BlitSurface(buffer, NULL, screen, NULL);
-    SDL_Flip(screen);
-
+    jmap_paint(bg_map);
 
     cast_actors(engine);
 
@@ -306,30 +320,27 @@ int main(int argc, char **argv)
         frames_so_far += frames;
 
         
+        glClear(GL_COLOR_BUFFER_BIT);
+
         /* overwrite with the background what was written last time */
-        for(i = 0; i < jdirty_get_prev(); i++){
-            jmap_paint(bg_map, buffer, &dirty_r[i]);
-            SDL_BlitSurface(buffer, &dirty_r[i], screen, &dirty_r[i]);
-        }
+        jmap_paint(bg_map);
         
         /* draw all the actors onto the screen */
         for(actor_ls = engine->actors;
          actor_ls != NULL; actor_ls = actor_ls->next){
-            extent = jactor_paint(actor_ls->actor, buffer, frames_so_far);
-            jdirty_add(extent);
-            SDL_BlitSurface(buffer, &extent, screen, &extent);
+            jactor_paint(actor_ls->actor, frames_so_far);
         }
+        
 
-
-        SDL_UpdateRects(screen, jdirty_get_prev() + jdirty_get_curr(),
-                dirty_r);
-
-        jdirty_iterate();
 
         rendered_frames++;
         last_tick = tick;
         //SDL_Delay(10);
         
+        glFlush();
+        SDL_GL_SwapBuffers();
+
+
     }
  
     end_time = SDL_GetTicks();
@@ -341,6 +352,7 @@ int main(int argc, char **argv)
                start_time));
 
     /* free resources */
+    jmap_free(bg_map);
     jen_free(engine);
 
     return 0;

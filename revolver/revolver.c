@@ -85,7 +85,7 @@ Uint32 getpixel(SDL_Surface *surface, int x, int y)
 
 int main(int argc, char **argv)
 {
-    int flags = SDL_SWSURFACE;
+    int flags = SDL_HWSURFACE;
     SDL_Surface *screen, *image, *tmp;
     int bpp = 0;
     int carry_on = 1;
@@ -102,7 +102,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    image = IMG_Load("image.jpg");
+    image = IMG_Load("cue.png");
     SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 
     if(!image){
@@ -127,9 +127,10 @@ int main(int argc, char **argv)
                 carry_on = 0;
             else if(event.type == SDL_KEYDOWN){
                 if(event.key.keysym.sym == SDLK_a){
+                    double a[2] = {sin(-theta), cos(-theta)};
                     int i, j;
                     Uint32 colour;
-                    theta += M_PI / 20;
+                    theta += M_PI / 160;
 
                     SDL_FillRect(tmp, NULL, black);
 
@@ -140,22 +141,26 @@ int main(int argc, char **argv)
                     for(i = 0; i < SCREEN_W; i++){
                         for(j = 0; j < SCREEN_H; j++){
                             
-                            int i_new, j_new;
-                            colour = getpixel(image, i, j);
-                            i_new = bankround(((double)j
-                                    - (double)SCREEN_H/2) * sin(theta)
+                            int i_src, j_src;
+
+                            i_src = bankround(((double)j
+                                    - (double)SCREEN_H/2) * a[0] 
                                     + ((double)i
-                                    - (double)SCREEN_W/2)* cos(theta)
+                                    - (double)SCREEN_W/2)* a[1] 
                                 + (double)SCREEN_W / 2);
-                            j_new = bankround(((double)i
-                                       - (double)SCREEN_W/2) * -sin(theta)
+                            j_src = bankround(((double)i
+                                       - (double)SCREEN_W/2) * -a[0]
                                     + ((double)j
-                                       -(double)SCREEN_H /2) * cos(theta)
+                                       -(double)SCREEN_H /2) * a[1]
                                 + (double)SCREEN_H /2);
-                            if(i_new >= 0 && i_new < SCREEN_W &&
-                                    j_new < SCREEN_H && j_new >= 0){
-                                putpixel(tmp, i_new, j_new, colour);
+
+                            if(i_src >= 0 && i_src < image->w &&
+                                    j_src < image->h && j_src >= 0){
+                                colour = getpixel(image, i_src, j_src);
+                            }else{
+                                colour = black;
                             }
+                            putpixel(tmp, i, j, colour);
                         }
                     }
 

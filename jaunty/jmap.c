@@ -21,7 +21,9 @@ static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
 void jmap_free(jmap *map)
 {
     SDL_FreeSurface(map->tilepalette);
+    glDeleteTextures(1, &(map->tex_name));
     free(map->map);
+    free(map->c_map);
     free(map);
     return;
 }
@@ -44,7 +46,7 @@ jmap *jmap_create(int w, int h)
         return NULL;
     }
 
-    map->c_map = malloc(sizeof(*(map->map)) * w * h);
+    map->c_map = malloc(sizeof(*(map->c_map)) * w * h);
     if(!map->c_map){
         jmap_free(map);
         return NULL;
@@ -55,20 +57,14 @@ jmap *jmap_create(int w, int h)
 
 int jmap_load_tilepalette(jmap *map, const char *filename, int tw, int th)
 {
-	SDL_Surface *tmp;
 	map->tw = tw;
 	map->th = th;
-	tmp = IMG_Load(filename);
-	if(!tmp){
+	map->tilepalette = IMG_Load(filename);
+	if(!map->tilepalette){
 		fprintf(stderr, "Could not load '%s'!\n", filename);
 		return -1;
 	}
-	map->tilepalette = SDL_DisplayFormat(tmp);
-	if(!map->tilepalette){
-		fprintf(stderr, "Could not convert '%s'!\n", filename);
-		return -1;
-	}
-	SDL_FreeSurface(tmp);
+
 	return 0;
 }
 
@@ -89,10 +85,14 @@ void jmap_c_map_from_string(jmap *map, const char *k, const char *m)
 static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
         map_type mtype)
 {
+    SDL_Surface *temp, *map_image;
+    SDL_Rect dst, src;
     char c;
     int z, i, j;
+    int xpad, ypad;
     unsigned char index;
     unsigned char (*map_ptr)[map->w];
+    Uint32 alpha;
 
     switch(mtype){
         case BG_IMG:
@@ -115,48 +115,97 @@ static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
             map_ptr[j][i] = index;
             z++;
         }
-        
+   
+    /* copy image onto a surface whose width and height are both a 
+     * power of two (as demanded by openGL) */
+    map->p2w = mkp2(map->w * map->tw);
+    map->p2h = mkp2(map->h * map->th);
 
-    return;
-}
+    xpad = (map->p2w - (map->w * map->tw))/2;
+    ypad = (map->p2h - (map->h * map->th))/2;
 
+    map_image = SDL_CreateRGBSurface(SDL_SWSURFACE, map->p2w,
+            map->p2h, 32, RMASK, GMASK, BMASK, AMASK);
 
-void jmap_paint(jmap *map, SDL_Surface *screen, SDL_Rect *part)
-{
-    int i, j;
-    int i_ll, i_ul, j_ll, j_ul;
-    int index;
-    SDL_Rect src, dst;
+    alpha = SDL_MapRGBA(map_image->format, 255, 0, 0, 0); 
+    SDL_FillRect(map_image, NULL, alpha); 
+    
 
+    if(!map_image){
+        fprintf(stderr, "Error creating the map's surface\n");
+        return;
+    }
+     
     src.w = map->tw;
     src.h = map->th;
-
-    dst.w = map->tw;
-    dst.h = map->th;
-
-    if(part == NULL){
-        i_ll = 0;
-        i_ul = map->w;
-        j_ll =0;
-        j_ul = map->h;
-    }else{
-        i_ll = floor((double)part->x / (double)map->tw);
-        i_ul = ceil((double)(part->x + part->w) / (double)map->tw);
-        j_ll = floor((double)part->y / (double)map->th);
-        j_ul = ceil((double)(part->y + part->h) / (double)map->th);
-    }
-
-    for(j = j_ll; j < j_ul; j++)
-        for(i = i_ll; i < i_ul; i++){
+    
+    
+    for(j = 0; j < map->h; j++)
+        for(i = 0; i < map->w; i++){
             dst.x = i * map->tw;
-            dst.y = j * map->th;
+            dst.y = j * map->th ;
 
             index = ((unsigned char(*)[map->w])map->map)[j][i];
             src.x = (index % src.w) * map->tw;
             src.y = (index / src.w) * map->th;
 
-            SDL_BlitSurface(map->tilepalette, &src, screen, &dst); 
+            SDL_BlitSurface(map->tilepalette, &src, map_image, &dst); 
         }
+   
+    /* create an openGL texture and bind the sprite's image
+     * to it */
+    glGenTextures(1, &(map->tex_name));
+    glBindTexture(GL_TEXTURE_2D, map->tex_name);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    /*
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, map_image->w,
+            map_image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+            map_image->pixels);
+            */
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, map_image->w,
+            map_image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+            map_image->pixels);
+
+    SDL_FreeSurface(map_image);
+
+    return;
+}
+
+
+void jmap_paint(jmap *map)
+{
+    int xpad, ypad;
+
+    xpad = (map->p2w - map->w * map->tw)/2;
+    ypad = (map->p2h - map->h * map->th)/2;
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, map->tex_name);
+
+    glBegin(GL_QUADS);
+
+    glTexCoord2f(0.0, 0.0);
+    //glVertex3f(-(float)map->p2w/2.0, -(float)map->p2h/2.0, 0);
+    glVertex3f(0, 0, 0);
+
+    glTexCoord2f(0.0, 1.0);
+    glVertex3f(0, (float)map->p2h, 0);
+
+    glTexCoord2f(1.0, 1.0);
+    glVertex3f((float)map->p2w, (float)map->p2h, 0);
+
+    glTexCoord2f(1.0, 0.0);
+    glVertex3f((float)map->p2w, 0, 0);
+
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
 
     return;
 }
