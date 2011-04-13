@@ -3,6 +3,8 @@
 #ifndef JUTILS_H
 #define JUTILS_H
 
+#include <math.h>
+
 #define magnitude(a, b) sqrt(pow(a, 2) + pow(b, 2))
 #define bankround(a) ((a) - floor(a)  >= 0.5 ? ceil(a) : floor(a))
 
@@ -31,5 +33,10 @@ void calc_m_c(double x1, double y1, double x2, double y2, double *m, double *c);
 int lines_intersect(double x11,double y11,double x12, double y12,
                     double x21, double y21, double x22, double y22,
                     double *x, double *y);
+
+/* returns the angle between the vector described by (x, y) and the positive
+ * x axis, if x = y = 0 returns 0 */
+double x_pos_angle(double x, double y);
+
 
 #endif

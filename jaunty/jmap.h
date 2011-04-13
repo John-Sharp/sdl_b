@@ -4,15 +4,13 @@
 #ifndef	JMAP_H
 #define	JMAP_H
 
-#include "SDL.h"
-#include "jactor.h"
-#include "jen.h"
-
 //typedef struct jcoll jcoll;
 //typedef enum jsides jsides;
 
-typedef struct jmap
+struct jmap
 {
+    SDL_Rect map_rect;  /* SDL_Rect describing the postion, width
+                         * and height of map */
 	int		w, h;		/* Size of map (tiles) */
     int p2w, p2h;       /* Real size of map in pixels, rounded up to the
                          * power of two as required by openGL */
@@ -24,17 +22,18 @@ typedef struct jmap
 	SDL_Surface	*tilepalette;		/* Tile palette image */
 
     GLuint tex_name; /* texture containing the map */
-} jmap;
+};
 
 
 
 //frees all resources allocated to 'map'
 void jmap_free(jmap *map);
 
-//creates a map, 'w' tiles wide by 'h' tiles high,
+//creates a map, with its top corner located at
+// ('x', 'y'), 'w' tiles wide by 'h' tiles high,
 //returns a pointer to this map, or NULL if the 
 //allocation failed.
-jmap *jmap_create(int w, int h);
+jmap *jmap_create(int x, int y, int w, int h);
 
 //loads a tilepalette for 'map', from the png file 'filename', which should
 //contain a series of background tiles 'tw' pixels wide by 'th' high.
@@ -64,18 +63,20 @@ void jmap_c_map_from_string(jmap *map, const char *k, const char *m);
  * and if c_info is not null populates the collision info with information
  * about the collision */
 jsides jmap_collision_detect(jmap *map, jactor *actor, jcoll *c_info,
-        int tile_mask);
+        unsigned char tile_mask);
 
 //returns the index of the first tile touched, going from (x1, y1) to 
-//(x2, y2), that matches the description provided in the 'tile_mask'
+//(x2, y2), that matches the description provided in the mask pointed
+//to by 'tile_mask'. 'tile_mask' is changed to equal the collision
+//key number that the actor actually touched first. 
 int jmap_first_tile_touched(jmap *map, double x1, double y1,
-        double x2, double y2, int tile_mask);
+        double x2, double y2, unsigned char *tile_mask);
 
 //returns the side of the background tile 'tile_index' that is intersected
 //by the line between (x1, y1) and (x2, y2) (or NULL if no intersection
 //takes place. The addresses pointed to by 'x' and 'y' are set to the 
 //point of intersection
-jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,
+jsides jmap_tile_intersection_point(jmap *map, int tile_index,
         double x1, double y1, double x2, double y2, 
         double *x, double *y);
 

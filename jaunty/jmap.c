@@ -1,10 +1,8 @@
 //Functions for creating/loading/drawing/destroying quite a generic map.
-#include "jmap.h"
 #include "jen.h"
 #include <math.h>
 #include "SDL.h"
 #include <SDL_image.h>
-#include "jutils.h"
 
 #define ensure_between(a, lower, higher) \
     (a < lower ? lower : (a > higher ? higher : a))
@@ -29,7 +27,7 @@ void jmap_free(jmap *map)
 }
 
 
-jmap *jmap_create(int w, int h)
+jmap *jmap_create(int x, int y, int w, int h)
 {
     jmap *map;
 
@@ -39,6 +37,9 @@ jmap *jmap_create(int w, int h)
 
     map->w = w;
     map->h = h;
+
+    map->map_rect.x = x;
+    map->map_rect.y = y;
 
     map->map = malloc(sizeof(*(map->map)) * w * h);
     if(!map->map){
@@ -59,6 +60,10 @@ int jmap_load_tilepalette(jmap *map, const char *filename, int tw, int th)
 {
 	map->tw = tw;
 	map->th = th;
+
+    map->map_rect.w = tw * map->w;
+    map->map_rect.h = th * map->h;
+
 	map->tilepalette = IMG_Load(filename);
 	if(!map->tilepalette){
 		fprintf(stderr, "Could not load '%s'!\n", filename);
@@ -85,7 +90,7 @@ void jmap_c_map_from_string(jmap *map, const char *k, const char *m)
 static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
         map_type mtype)
 {
-    SDL_Surface *temp, *map_image;
+    SDL_Surface *map_image;
     SDL_Rect dst, src;
     char c;
     int z, i, j;
@@ -146,8 +151,8 @@ static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
             dst.y = j * map->th ;
 
             index = ((unsigned char(*)[map->w])map->map)[j][i];
-            src.x = (index % src.w) * map->tw;
-            src.y = (index / src.w) * map->th;
+            src.x = (index % (map->tilepalette->w / map->tw)) * map->tw;
+            src.y = (index / (map->tilepalette->w / map->tw)) * map->th;
 
             SDL_BlitSurface(map->tilepalette, &src, map_image, &dst); 
         }
@@ -158,12 +163,6 @@ static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
     glBindTexture(GL_TEXTURE_2D, map->tex_name);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-    /*
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, map_image->w,
-            map_image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-            map_image->pixels);
-            */
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, map_image->w,
             map_image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
@@ -177,10 +176,13 @@ static void jmap_from_string_internal(jmap *map, const char *k, const char *m,
 
 void jmap_paint(jmap *map)
 {
-    int xpad, ypad;
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, map->map_rect.w,
+            map->map_rect.h, 0, 0.5, 0.0);
+    glViewport(map->map_rect.x, map->map_rect.y,
+            map->map_rect.w, map->map_rect.h);
 
-    xpad = (map->p2w - map->w * map->tw)/2;
-    ypad = (map->p2h - map->h * map->th)/2;
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -191,7 +193,6 @@ void jmap_paint(jmap *map)
     glBegin(GL_QUADS);
 
     glTexCoord2f(0.0, 0.0);
-    //glVertex3f(-(float)map->p2w/2.0, -(float)map->p2h/2.0, 0);
     glVertex3f(0, 0, 0);
 
     glTexCoord2f(0.0, 1.0);
@@ -201,7 +202,7 @@ void jmap_paint(jmap *map)
     glVertex3f((float)map->p2w, (float)map->p2h, 0);
 
     glTexCoord2f(1.0, 0.0);
-    glVertex3f((float)map->p2w, 0, 0);
+    glVertex3f((float)map->p2w, 0 , 0);
 
     glEnd();
 
@@ -212,7 +213,7 @@ void jmap_paint(jmap *map)
 
 
 jsides jmap_collision_detect(jmap *map, jactor *actor, jcoll *c_info,
-        int tile_mask)
+        unsigned char tile_mask)
 {
     jcoll spare_c_info;
     int i;
@@ -223,7 +224,7 @@ jsides jmap_collision_detect(jmap *map, jactor *actor, jcoll *c_info,
 
     i = jmap_first_tile_touched(map, actor->px, actor->py,
             actor->x, actor->y,
-            tile_mask);
+            &(tile_mask));
 
     if(i==-1){
         return NONE;
@@ -235,13 +236,15 @@ jsides jmap_collision_detect(jmap *map, jactor *actor, jcoll *c_info,
             i, actor->px, actor->py, actor->x, actor->y,
             &(c_info->x), &(c_info->y));
 
+    c_info->c_key_num = tile_mask;
+
     c_info->c_type = A_T;
 
     return c_info->side;
 }
 
 int jmap_first_tile_touched(jmap *map, double x1, double y1,
-        double x2, double y2, int tile_mask)
+        double x2, double y2, unsigned char *tile_mask)
 {
     double m, c;
     double f_x, f_xplus1;
@@ -249,6 +252,7 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
     int dy = 1;
     int dx = 1;
     int i, j;
+    unsigned char tm = *tile_mask;
 
 
 
@@ -277,11 +281,13 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
             x2/(double)map->tw, y2/(double)map->th, &m, &c);
  
     //when the gradient is infinite, all tiles along
-    //a vertical line are checked to see if they match 'tile_mask'
+    //a vertical line are checked to see if they match 'tm'
     if(m == HUGE_VAL || -m == HUGE_VAL ){
         for(j = tile_y1; j != tile_y2 + dy; j+=dy){
-            if(1 << c_map[j][tile_x1] & tile_mask)
+            if(1 << c_map[j][tile_x1] & tm){
+                *tile_mask = (1 << c_map[j][tile_x1]);
                 return j * map->w + tile_x1;
+            }
         }
         return -1;
     }
@@ -299,7 +305,8 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
              * rounding errors that can occur in the previous steps */
             if(*y_lower <= (double)(j + 1.00001)
                     && *y_upper >= (double)j - 0.00001){
-                if(1 << c_map[j][i] & tile_mask){
+                if(1 << c_map[j][i] & tm){
+                    *tile_mask = (1 << c_map[j][i]);
                     return j * map->w + i;
                 }
             }
@@ -309,7 +316,7 @@ int jmap_first_tile_touched(jmap *map, double x1, double y1,
     return -1;
 }
 
-jsides jmap_tile_intersection_point(jmap *map, unsigned char tile_index,       
+jsides jmap_tile_intersection_point(jmap *map, int tile_index,       
         double x1, double y1, double x2, double y2, 
         double *x, double *y)
 {

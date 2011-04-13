@@ -92,3 +92,27 @@ int lines_intersect(double x11,double y11,double x12, double y12,
 }
 
 
+double x_pos_angle(double x, double y)
+{
+    if(x == 0)
+        if(y==0){
+            fprintf(stderr, "setting to nan\n");
+            return NAN; /* really in this case the angle is undefined,
+                         but well... */
+        }
+        else if(y>0)
+            return M_PI / 2.; /* going up y-axis */
+        else
+            return -M_PI/2.; /* going down y-axis */
+    else if(x>0)
+        return atan(y/x);
+    else
+        return atan(y/x) - M_PI; /* needed to convert the angle
+                                       from being between vector
+                                       and negative x-axis to being
+                                       between vector and postive
+                                       x-axis */
+
+}
+
+
