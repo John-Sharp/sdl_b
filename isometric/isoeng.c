@@ -3,6 +3,7 @@
  * Functions for creating/loading/destroying an isometric engine.
  *
  */
+
 #include "isoeng.h"
 #include <stddef.h>
 #include <stdlib.h>
@@ -17,11 +18,11 @@ void isoeng_free(struct isoeng *engine)
     struct isogrp *p;
     struct isols *q;
 
-    for(p = engine->grp_ls; p != NULL; p = p->next){
+    for(p = engine->groups; p != NULL; p = p->next){
        isogrp_free(p);
     }
 
-    for(q=engine->actor_ls; q!=NULL; q=q->next){
+    for(q=engine->actors; q!=NULL; q=q->next){
         isoactor_free(q->actor);
         free(q);
     }
@@ -32,7 +33,7 @@ void isogrp_free(struct isogrp *group)
 {
     struct isols *p;
 
-    for(p=group->list; p!=NULL; p=p->next){
+    for(p=group->ls; p!=NULL; p=p->next){
         free(p);
     }
 }
@@ -55,74 +56,10 @@ struct isoeng *isoeng_create(void)
         exit(1);
     }
 
-    engine->actor_ls = NULL;
-    engine->grp_ls = NULL;
+    engine->actors = NULL;
+    engine->groups = NULL;
 
     return engine;
-}
-
-/* Function that returns the number of consecutive  0's
- * that trail a binary integer. Used in the conversion
- * of the bitfields that are used to reference actor 
- * groups into integers that indicate the position of the 
- * actor group in the actor group list. */  
-static int trailing_zeroes(unsigned char group_num)
-{
-    /* Number of trailing zeroes */
-    int tz_num = 0;
-
-    for(; (group_num & 1) != 1; group_num >>= 1){
-        tz_num += 1;
-    }
-
-    return tz_num;
-}
-
-
-static struct isogrp *isogrp_add_node(struct isogrp *grp, int grp_num,
-        struct isoactor *actor)
-{
-    struct isogrp *next;
-    struct isogrp **newnode;
-    struct isogrp *nn;
-
-    if(grp == NULL){
-        next = NULL;
-        newnode = &nn;
-    }else{
-        next = grp->next;
-        newnode = &(grp->next);
-    }
-
-    /* Allocate group stub */
-    if((*newnode = malloc(sizeof(*(*newnode)))) == NULL){
-        fprintf(stderr, "Error allocating node for group %d\n", grp_num);
-        exit(1);
-    }
-
-    (*newnode)->next = next;
-    (*newnode)->grp_num = grp_num;
-
-    /* Add list to group stub */
-    if(((*newnode)->list = malloc(sizeof(*((*newnode)->list)))) == NULL){
-        fprintf(stderr, "Error allocating list for group %d\n", grp_num);
-        exit(1);
-    }
-
-    (*newnode)->list->next = NULL;
-
-    /*  Add actor to list */
-    (*newnode)->list->actor = actor;
-
-#ifdef DEBUG_MODE
-
-    if(grp == NULL)
-        fprintf(stderr, "Put actor in group: %d (start stub)\n", grp_num);
-    else
-        fprintf(stderr, "Put actor in group: %d (new stub)\n", grp_num);
-#endif
-
-    return *newnode;
 }
 
 struct isols *isols_add_actor(struct isols *ls, struct isoactor *actor)
@@ -141,51 +78,54 @@ struct isols *isols_add_actor(struct isols *ls, struct isoactor *actor)
 } 
 
 
-struct isoactor *isoeng_new_actor(struct isoeng *engine, int groupnum)
+struct isoactor *isoeng_new_actor(struct isoeng *engine, unsigned int groupnum)
 {
     struct isoactor *actor;
-    struct isols *p, *q=NULL;
-    static int uid=0;
+    struct isols *p, *q = NULL;
+    static unsigned int uid = 0;
 
 
-    if((actor=malloc(sizeof(*actor)))==NULL){
+    if((actor = malloc(sizeof(*actor))) == NULL){
         fprintf(stderr, "Error allocating memory for actor.\n");
         exit(1);
     }
 
-    for(p=engine->actor_ls; p!=NULL; p=p->next){
-        q=p;
+    for(p = engine->actors; p != NULL; p = p->next){
+        q = p;
     }
 
-    actor->uid=uid;
+    actor->uid = uid;
     uid++;
-    actor->groups=groupnum;
+    actor->groups = groupnum;
 
 #ifdef DEBUG_MODE
     fprintf(stderr, "\nCreating actor %d\n", actor->uid);
 #endif
 
     /* Put the actor in the global actor list */
-    if(q==NULL){
-        if((engine->actor_ls=malloc(sizeof(*(engine->actor_ls))))==NULL){
+    engine->actors = isols_add_actor(engine->actors, actor);
+    /*
+    if(q == NULL){
+        if((engine->actors = malloc(sizeof(*(engine->actors)))) == NULL){
             fprintf(stderr, "Error allocating memory for actor list.\n");
             exit(1);
         }
-        p=engine->actor_ls;
+        p = engine->actors;
     }else{
-        if((q->next=malloc(sizeof(*q)))==NULL){
+        if((q->next = malloc(sizeof(*q))) == NULL){
             fprintf(stderr, "Error allocating memory for actor list.\n");
             exit(1);
         }
-        p=q->next;
+        p = q->next;
     }
 
-    p->actor=actor;
-    p->next=NULL;
+    p->actor = actor;
+    p->next = NULL;
+    */
 
 #ifdef DEBUG_MODE
     fprintf(stderr, "List of engine's actors: ");
-    for(q=engine->actor_ls; q!=NULL; q=q->next){
+    for(q=engine->actors; q!=NULL; q=q->next){
         fprintf(stderr, "%d, ", q->actor->uid);
     }
     fprintf(stderr, "\n");
@@ -194,16 +134,16 @@ struct isoactor *isoeng_new_actor(struct isoeng *engine, int groupnum)
     /* Put the actor in its groups */
     struct isogrp *gp;
 
-    for(gp = engine->grp_ls; gp != NULL; gp = gp->next){
-        if(groupnum & gp->grp_num){
-            gp->list = isols_add_actor(gp->list, actor);
+    for(gp = engine->groups; gp != NULL; gp = gp->next){
+        if(groupnum & gp->groupnum){
+            gp->ls = isols_add_actor(gp->ls, actor);
         }
     }
 
     return actor;
 }
 
-/* Returns a list of all actors in ls with a actor->groupnum that satisfies
+/* Returns a ls of all actors in ls with a actor->groupnum that satisfies
  * a bitwise AND with groupnum */
 struct isols *isols_matching_groupnum(struct isols *ls, unsigned int groupnum)
 {
@@ -239,26 +179,26 @@ struct isogrp *isogrp_add_ls(struct isogrp *grp, struct isols *ls,
                     "registering new composite group %d\n", groupnum);
             exit(1);
         }
-        grp->list = ls;
+        grp->ls = ls;
         grp->next = NULL;
-        grp->grp_num = groupnum;
+        grp->groupnum = groupnum;
 
         return grp;
     }
 
 
-    if(grp->grp_num > groupnum){
+    if(grp->groupnum > groupnum){
         if((p = malloc(sizeof(*p))) == NULL){
             fprintf(stderr, "Could not allocate memory for "
                     " registering new composite group %d\n", groupnum);
             exit(1);
         }
-        p->list = grp->list;
+        p->ls = grp->ls;
         p->next = grp->next;
-        p->grp_num = grp->grp_num;
-        grp->list = ls;
+        p->groupnum = grp->groupnum;
+        grp->ls = ls;
         grp->next = p;
-        grp->grp_num = groupnum;
+        grp->groupnum = groupnum;
 
         return grp;
     }
@@ -267,27 +207,27 @@ struct isogrp *isogrp_add_ls(struct isogrp *grp, struct isols *ls,
     return grp->next;
 }
 
-struct isogrp *isoeng_get_group(struct isoeng *engine, int groupnum)
+struct isogrp *isoeng_get_group(struct isoeng *engine, unsigned int groupnum)
 {
     struct isogrp *gp;
     struct isols *target;
 
     /* Loop through all the engine's groups, checking to see whether 
      * the group has been previously created */
-    for(gp = engine->grp_ls; gp != NULL; gp = gp->next){
-        if(gp->grp_num == groupnum){
+    for(gp = engine->groups; gp != NULL; gp = gp->next){
+        if(gp->groupnum == groupnum){
             return gp;
         }
-        else if(gp->grp_num > groupnum)
+        else if(gp->groupnum > groupnum)
             break;
     }
 
     /* The group has not been previously created and so must be made... */
-    target = isols_matching_groupnum(engine->actor_ls, groupnum);
+    target = isols_matching_groupnum(engine->actors, groupnum);
 
-    gp = isogrp_add_ls(engine->grp_ls, target, groupnum);
-    if(engine->grp_ls == NULL){
-        engine->grp_ls = gp;
+    gp = isogrp_add_ls(engine->groups, target, groupnum);
+    if(engine->groups == NULL){
+        engine->groups = gp;
     }
 
     return(gp);
@@ -319,27 +259,6 @@ struct isols *isols_del_actor(struct isols *ls, struct isoactor *actor)
     return ls;
 }
 
-struct isogrp *isogrp_del_node(struct isogrp **grpp)
-{
-    struct isogrp *grp = *grpp;
-
-    if(grp->next == NULL){
-        free(grp->list);
-        free(grp);
-        *grpp = NULL;
-        return NULL;
-    }
-
-    grp->next = grp->next->next;
-    grp->list = grp->next->list;
-    grp->grp_num = grp->next->grp_num;
-
-    free(grp->list);
-    free(grp->next);
-
-    return grp;
-}
-
 struct isols *isols_find_actor(struct isols *ls, struct isoactor *actor)
 {
     struct isols *p;
@@ -360,27 +279,54 @@ void isoeng_del_actor(struct isoeng *engine, struct isoactor *actor)
     fprintf(stderr, "Deleting actor %d\n", actor->uid);
 #endif
 
-    for(p = engine->grp_ls; p != NULL; p = p->next){
-        if(p->grp_num & actor->groups){
-           p->list = isols_del_actor(p->list, actor);
+    for(p = engine->groups; p != NULL; p = p->next){
+        if(p->groupnum & actor->groups){
+           p->ls = isols_del_actor(p->ls, actor);
 
 #ifdef DEBUG_MODE
-           if(p->list == NULL){ 
+           if(p->ls == NULL){ 
                fprintf(stderr, "List has been completely deleted\n");
            }
 #endif
        }
     }
 
-    engine->actor_ls = isols_del_actor(engine->actor_ls, actor);
+    engine->actors = isols_del_actor(engine->actors, actor);
     free(actor);
 
     return;
 }
 
 void isoeng_actor_drop(struct isoeng *engine, struct isoactor *actor,
-        int groupnum)
+        unsigned int groupnum)
 {
+    struct isogrp *pg;
+
+    for(pg = engine->groups; pg != NULL; pg = pg->next){
+        if(actor->groups & pg->groupnum && pg->groupnum & groupnum){
+            printf("dropping actor %d\n", pg->groupnum);
+            pg->ls = isols_del_actor(pg->ls, actor);
+        }
+    }
+
+    actor->groups ^= (actor->groups & groupnum);
+    printf("now in group: %d", actor->groups);
+
+    return;
+}
+
+void isoeng_actor_add(struct isoeng *engine, struct isoactor *actor,
+        unsigned int groupnum)
+{
+    struct isogrp *pg;
+
+    for(pg = engine->groups; pg != NULL; pg = pg->next){
+        if(!(actor->groups & pg->groupnum) && pg->groupnum & groupnum){
+            pg->ls = isols_add_actor(pg->ls, actor);
+        }
+    }
+
+    actor->groups |= groupnum;
 
     return;
 }

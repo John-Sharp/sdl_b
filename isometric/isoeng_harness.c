@@ -5,9 +5,9 @@ void printgrp(struct isogrp *grp)
 {
     struct isols *lp;
 
-    printf("\nMembers of group: %d\n", grp->grp_num);
+    printf("\nMembers of group: %d\n", grp->groupnum);
 
-    for(lp = grp->list; lp != NULL; lp = lp->next){
+    for(lp = grp->ls; lp != NULL; lp = lp->next){
         printf("Actor %d\n", lp->actor->uid);
     }
     printf("\n");
@@ -34,6 +34,10 @@ int main(void)
     grp = isoeng_get_group(engine, testgrp | 1 << 4);
 
     grp = isoeng_get_group(engine, testgrp);
+
+    isoeng_actor_drop(engine, actor[0], testgrp);
+    isoeng_actor_drop(engine, actor[2], testgrp);
+    isoeng_actor_add(engine, actor[2], testgrp);
 
     printgrp(grp);
 
