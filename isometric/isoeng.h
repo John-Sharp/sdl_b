@@ -45,7 +45,7 @@ struct isoactor *isoeng_new_actor(struct isoeng *engine, int groupnum);
 void isoeng_del_actor(struct isoeng *engine, struct isoactor *actor);
 
 /* Returns the group satisfying 'groupnum' */
-struct isols *isoeng_get_group(struct isoeng *engine, int groupnum);
+struct isogrp *isoeng_get_group(struct isoeng *engine, int groupnum);
 
 /* Drops 'actor' from groups referenced by 'groupnum'. If the actor is in
  * no more groups at all then the the actor will be freed completely */
