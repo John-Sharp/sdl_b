@@ -5,23 +5,7 @@
  */
 
 #include "isomap.h"
-
-
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-	enum { RMASK = 0xff000000, GMASK = 0x00ff0000,
-        BMASK = 0x0000ff00,	AMASK = 0x000000ff};
-#else
-	enum { RMASK = 0x000000ff,	GMASK = 0x0000ff00,
-        BMASK = 0x00ff0000,	AMASK = 0xff000000};
-#endif
-
-
-
-/* A pair of macros to give the (x, y) components of the projection
- * of (r_x, r_y) using the projector matrix A */
-#define project_x(A, r_x, r_y) (A[0][0] * r_x + A[0][1] * r_y) 
-#define project_y(A, r_x, r_y) (A[1][0] * r_x + A[1][1] * r_y) 
-
+#include "isoeng.h"
 void isomap_free(struct isomap *map)
 {
     SDL_FreeSurface(map->tilepalette);
@@ -29,6 +13,19 @@ void isomap_free(struct isomap *map)
     free(map->map);
     free(map);
     return ;
+}
+
+void iso_transform(struct isomap *map, double *x, double *y)
+{
+    double x_temp, y_temp;
+
+    x_temp = project_x(map->ri, *x, *y);
+    y_temp = project_y(map->ri, *x, *y);
+
+    *x = x_temp + map->h * map->tw/2;
+    *y = y_temp;
+
+    return;
 }
 
 struct isomap *isomap_create(const SDL_Rect *map_rect,
@@ -56,6 +53,8 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
     map->ir[0][1] = 1 / sqrt(6);
     map->ir[1][0] = -1 / sqrt(2);
     map->ir[1][1] = 1 / sqrt(6);
+
+    map->coord_trans = iso_transform;
 
     memcpy(&(map->map_rect), map_rect, sizeof(map->map_rect));
 

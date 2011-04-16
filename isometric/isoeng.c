@@ -11,7 +11,6 @@
 #include <string.h>
 
 static void isogrp_free(struct isogrp *group);
-static void isoactor_free(struct isoactor *actor);
 
 void isoeng_free(struct isoeng *engine)
 {
@@ -38,16 +37,36 @@ void isogrp_free(struct isogrp *group)
     }
 }
 
-void isoactor_free(struct isoactor *actor)
+void initialise_video(struct isoeng *engine, unsigned int win_w,
+        unsigned int win_h)
 {
-#ifdef DEBUG_MODE
-    fprintf(stderr, "Deleting actor uid: %d\n", actor->uid);
-#endif
+    int flags = SDL_OPENGL;
+    
+    if(SDL_Init(SDL_INIT_VIDEO) == -1){
+        fprintf(stderr, "Video initialisation failed: %s\n", SDL_GetError());
+        exit(1);
+    }
+    atexit(SDL_Quit);
 
-    free(actor);
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 5);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 5);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 5);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glDisable(GL_DEPTH);
+
+    engine->screen = SDL_SetVideoMode(win_w, win_h, 0, flags);
+    if(!engine->screen){
+        fprintf(stderr, "Failed to open screen!\n");
+        exit(1);
+    }
+
+    return;
 }
 
-struct isoeng *isoeng_create(void)
+struct isoeng *isoeng_create(unsigned int win_w, unsigned int win_h)
 {
     struct isoeng *engine;
 
@@ -58,6 +77,8 @@ struct isoeng *isoeng_create(void)
 
     engine->actors = NULL;
     engine->groups = NULL;
+
+    initialise_video(engine, win_w, win_h);
 
     return engine;
 }
@@ -78,17 +99,14 @@ struct isols *isols_add_actor(struct isols *ls, struct isoactor *actor)
 } 
 
 
-struct isoactor *isoeng_new_actor(struct isoeng *engine, unsigned int groupnum)
+struct isoactor *isoeng_new_actor(struct isoeng *engine, int w, int h,
+        const char *sprite_file_name, unsigned int groupnum)
 {
     struct isoactor *actor;
     struct isols *p, *q = NULL;
     static unsigned int uid = 0;
 
-
-    if((actor = malloc(sizeof(*actor))) == NULL){
-        fprintf(stderr, "Error allocating memory for actor.\n");
-        exit(1);
-    }
+    actor = isoactor_create(w, h, sprite_file_name);
 
     for(p = engine->actors; p != NULL; p = p->next){
         q = p;
@@ -104,24 +122,6 @@ struct isoactor *isoeng_new_actor(struct isoeng *engine, unsigned int groupnum)
 
     /* Put the actor in the global actor list */
     engine->actors = isols_add_actor(engine->actors, actor);
-    /*
-    if(q == NULL){
-        if((engine->actors = malloc(sizeof(*(engine->actors)))) == NULL){
-            fprintf(stderr, "Error allocating memory for actor list.\n");
-            exit(1);
-        }
-        p = engine->actors;
-    }else{
-        if((q->next = malloc(sizeof(*q))) == NULL){
-            fprintf(stderr, "Error allocating memory for actor list.\n");
-            exit(1);
-        }
-        p = q->next;
-    }
-
-    p->actor = actor;
-    p->next = NULL;
-    */
 
 #ifdef DEBUG_MODE
     fprintf(stderr, "List of engine's actors: ");

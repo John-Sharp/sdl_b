@@ -27,10 +27,10 @@ void initialise(void)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glDisable(GL_DEPTH);
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, MAP_W, MAP_H, 0.0, -1.0, 1.0);
-    glViewport(0, 0, MAP_W, 2*MAP_H);
+//    glMatrixMode(GL_PROJECTION);
+ //   glLoadIdentity();
+    //glOrtho(0, MAP_W, MAP_H, 0.0, -1.0, 1.0);
+    //glViewport(0, 0, MAP_W, MAP_H);
 
     return;
 }

@@ -51,7 +51,7 @@ int main(int argc, char **argv)
     Uint32 rendered_frames = 0;
     SDL_Surface *screen;
     struct isomap *map;
-    SDL_Rect map_rect = {.x = 100, .y = 100, .w = WIN_W, .h = WIN_H};
+    SDL_Rect map_rect = {.x = 0, .y = 0, .w = WIN_W, .h = WIN_H};
     SDL_Event selection;
 	const SDL_VideoInfo* info = NULL;
 

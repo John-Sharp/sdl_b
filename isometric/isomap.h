@@ -28,13 +28,17 @@ struct isomap{
 
     SDL_Surface *tilepalette; /* Tile palette image */
 
+    void (*coord_trans)(struct isomap *map,
+            double *x, double *y); /* Function to transform a point
+                                      in real-space into map-space */
+
     GLuint texname;    /* Texture containing the map */
 };
 
 /* Frees all resource allocated to 'map' */
 void isomap_free(struct isomap *map);
 
-/* Creates a map, with located in 'map_rect', 'w' tiles wide
+/* Creates a map, located in 'map_rect', 'w' tiles wide
  * by 'h' tiles high. The map is made out of tiles 'tw' x
  * 'tw' / sqrt(3) pixels big. The constituent tile images are
  * located in the file 'filename', these tiles are referenced

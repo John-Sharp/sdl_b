@@ -6,8 +6,11 @@ isomap: isomap_harness.c isomap.c isomap.h
 	$(CC) isomap_harness.c isomap.c $(CFLAGS) -o isomap
 
 
-isoeng: isoeng_harness.c isoeng.c isoeng.h
-	$(CC) isoeng_harness.c isoeng.c $(CFLAGS) -o isoeng
+isoeng: isoeng_harness.c isoeng.c isoeng.h \
+	isoactor.c isoactor.h\
+	isomap.c isomap.h
+	$(CC) isoeng_harness.c isoeng.c isoactor.c\
+	   isomap.c	$(CFLAGS) -o isoeng
 
 
 clean:
