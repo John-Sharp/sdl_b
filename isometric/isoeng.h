@@ -24,6 +24,11 @@
 #define project_x(A, r_x, r_y) (A[0][0] * r_x + A[0][1] * r_y) 
 #define project_y(A, r_x, r_y) (A[1][0] * r_x + A[1][1] * r_y) 
 
+/* A pair of macros to give the (x, y) components of the projection
+ * and translation of (r_x, r_y) using the augmented matrix A */
+#define project_a_x(A, r_x, r_y) (A[0][0] * r_x + A[0][1] * r_y + A[0][2])
+#define project_a_y(A, r_x, r_y) (A[1][0] * r_x + A[1][1] * r_y + A[1][2])
+
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 	enum { RMASK = 0xff000000, GMASK = 0x00ff0000,
         BMASK = 0x0000ff00,	AMASK = 0x000000ff};
@@ -31,9 +36,6 @@
 	enum { RMASK = 0x000000ff,	GMASK = 0x0000ff00,
         BMASK = 0x00ff0000,	AMASK = 0xff000000};
 #endif
-
-#include "isomap.h"
-#include "isoactor.h"
 
 struct isols{         /* List of actors */
     struct isoactor *actor; /* Pointer to actor */
@@ -53,6 +55,13 @@ struct isoeng{        /* Isometric engine */
 
     SDL_Surface *screen; /* Main game window surface */
 }; 
+
+struct isoactor;
+struct isomap;
+
+#include "isomap.h"
+#include "isoactor.h"
+
 
 /* Frees all resources allocated to 'engine' */
 void isoeng_free(struct isoeng *engine);

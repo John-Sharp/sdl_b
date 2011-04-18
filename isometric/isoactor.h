@@ -17,6 +17,9 @@ struct isoactor{       /* A character in the game */
     double px, py;              /* x, y coordinates from previous frame */
     double gx, gy;              /* x, y coordinates of actor's interpolated
                                    position in fractional frame */
+
+    double vx, vy;              /* x and y components of velocity */
+    double ax, ay;              /* x and y components of acceleration */
                                    
     int w, h;                   /* Width and height of actor */
     int p2w, p2h;               /* Width and height of actor to nearest power
@@ -32,6 +35,10 @@ struct isoactor{       /* A character in the game */
 
     unsigned int groups;        /* Bit-field of the groups the
                                    actor is a member of */
+
+    void (*i_handler)(struct isoactor *, \
+            struct isoeng *); /* Iteration handler that gets called on
+                                 each logic frame */
 };
 
 /* Frees the resources allocated to the actor */
@@ -44,5 +51,8 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename);
 /* Paint the actor, on the map 'map'. 'frame' is the frame that the game is 
  * currently on */
 int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame);
+
+/* Function that gets called on each logic frame */
+void isoactor_iterate(struct isoactor *actor, struct isoeng *engine);
 
 #endif

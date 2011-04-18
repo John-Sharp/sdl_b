@@ -21,12 +21,13 @@ void printgrp(struct isogrp *grp)
     printf("\n");
 }
 
-struct isomap *isomap_test()
+struct isomap *isomap_test(unsigned int groups)
 {
     SDL_Rect map_rect = {.x = 0, .y =0, .w = WIN_W, .h = WIN_H};
     struct isomap *map;
 
-    map = isomap_create(&map_rect, MAP_W, MAP_H, 50, "test.png",
+    map = isomap_create(&map_rect, groups, MAP_W, MAP_H,
+            50, "test.png",
             "abc", "aacccccc"
                    "accccccc"
                    "cccccccc"
@@ -69,6 +70,7 @@ int main(void)
     grp = isoeng_get_group(engine, testgrp | 1 << 4);
     grp = isoeng_get_group(engine, testgrp);
 
+    printgrp(grp);
     isoeng_actor_drop(engine, actor[0], testgrp);
     isoeng_actor_drop(engine, actor[2], testgrp);
     isoeng_actor_add(engine, actor[2], testgrp);
@@ -76,44 +78,57 @@ int main(void)
     printgrp(grp);
 
     isoeng_del_actor(engine, actor[0]);
-//    isoeng_del_actor(engine, actor[1]);
     isoeng_del_actor(engine, actor[4]);
 
     actor[4] = isoeng_new_actor(engine, ACTOR_W,
             ACTOR_H, "blob.png", testgrp);
     actor[4] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", testgrp);
-//    isoeng_del_actor(engine, actor[3]);
+            ACTOR_H, "blob.png", 1<<4);
 
     printgrp(grp);
 
-    map = isomap_test();
+    map = isomap_test(1 << 4);
 
-    actor[0]->x = 100;
-    actor[0]->y = 50;
-    actor[0]->px = 100;
-    actor[0]->py = 50;
+    actor[4]->x = actor[4]->px = 30;
+    actor[4]->y = actor[4]->py = 40;
+
+    actor[4]->vx = 0.25;
+    actor[4]->vy = 0.1;
+
+
+
 
 
     start_t = SDL_GetTicks();
     while(carry_on){
         /* Do all the painting that is required */
         p_frame++;
-        isomap_paint(map);
-        isoactor_paint(actor[0], map, elapsed_frames);
+        isomap_paint(map, engine, elapsed_frames);
+
         glFlush();
         SDL_GL_SwapBuffers();
 
+        /* See whether it is time for a logic frame */
         curr_t = SDL_GetTicks();
         elapsed_frames = ((double)(curr_t - start_t) / 1000. * FPS) - c_frame; 
 
+        /* Work through all the logic frames */
         while((int)elapsed_frames--){
+            struct isols *pl;
+
             c_frame++;
-            while(SDL_PollEvent(&selection)){
-                if(selection.type == SDL_QUIT){
-                    carry_on = 0;
-                }
+
+            SDL_PumpEvents();
+            if(SDL_PeepEvents(&selection, 1,
+                        SDL_GETEVENT, SDL_EVENTMASK(SDL_QUIT))){
+                carry_on = 0;
             }
+
+            /* Call iterator for all actors */
+            for(pl = engine->actors; pl != NULL; pl = pl->next){
+                isoactor_iterate(pl->actor, engine);
+            }
+
         }
     }
 

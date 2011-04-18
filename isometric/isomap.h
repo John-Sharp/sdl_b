@@ -13,24 +13,26 @@
 #include <string.h>
 #include <math.h>
 
+#include "isoeng.h"
+
 struct isomap{
     SDL_Rect map_rect; /* SDL_Rect describing the position, width
                           and height of map */
+
+    unsigned int groups; /* Groups that are associated with this
+                            map (and should be painted when map
+                            is painted */
 
     int w, h;          /* Size of map (tiles) */
     int tw, th;        /* Size of one tile (pixels) */
     int rw, rh;        /* Real size of the map (pixels) */
 
-    float ri[2][2];      /* Real to isometric space projector */
-    float ir[2][2];      /* Isometric to real space projector */
+    float ri[2][3];      /* Real to isometric space projector */
+    float ir[2][3];      /* Isometric to real space projector */
 
     unsigned char *map; /* 2D array of tile indicies */
 
     SDL_Surface *tilepalette; /* Tile palette image */
-
-    void (*coord_trans)(struct isomap *map,
-            double *x, double *y); /* Function to transform a point
-                                      in real-space into map-space */
 
     GLuint texname;    /* Texture containing the map */
 };
@@ -39,19 +41,22 @@ struct isomap{
 void isomap_free(struct isomap *map);
 
 /* Creates a map, located in 'map_rect', 'w' tiles wide
- * by 'h' tiles high. The map is made out of tiles 'tw' x
- * 'tw' / sqrt(3) pixels big. The constituent tile images are
- * located in the file 'filename', these tiles are referenced
- * by letters in the key-string 'k' and the map is described
+ * by 'h' tiles high. Actors with group number satisfying
+ * 'groups' as associated with this map. The map is made
+ * out of tiles 'tw' x 'tw' / sqrt(3) pixels big. The
+ * constituent tile images are located in the file
+ * 'filename', these tiles are referenced by letters in
+ * the key-string 'k' and the map is described
  * by the order of the letters in the map-string 'm'. Returns
  * a pointer to this map, or NULL if the allocation failed */
 struct isomap *isomap_create(const SDL_Rect *map_rect,
+        double groups,
         int w, int h, int tw, const char *filename,
         const char *k, const char *m);
 
 int isomap_from_string(struct isomap *map, const char *k, const char *m);
 
 /* Paint the map onto the screen */
-void isomap_paint(struct isomap *map);
+void isomap_paint(struct isomap *map, struct isoeng *engine, double frame);
 
 #endif

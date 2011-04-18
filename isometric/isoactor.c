@@ -39,6 +39,9 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
         exit(1);
     }
 
+    actor->x = actor->y = actor->px = actor->py = 0;
+    actor->vx = actor->vy = actor->ax = actor->ay = 0;
+
     actor->w = w;
     actor->h = h;
 
@@ -131,6 +134,8 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
     SDL_FreeSurface(image);
     SDL_FreeSurface(sprite);
 
+    actor->i_handler = NULL;
+
     return actor;
 }
 
@@ -139,6 +144,7 @@ int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)
     double fframe = frame - floor(frame); /* fframe holds what fraction we
                                              through the current frame */
     int show_sprite = actor->show_sprite;
+    double x_temp;
 
     /* Calculating the point where the actor should be drawn */
     actor->gx = fframe * actor->x + (1 - fframe) * actor->px;
@@ -150,7 +156,9 @@ int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)
 
     /* Transforming the point where the actor should be drawn 
      * to the map's perspective */
-    map->coord_trans(map, &(actor->gx), &(actor->gy));
+    x_temp = floor(project_a_x(map->ri, actor->gx, actor->gy));
+    actor->gy = floor(project_a_y(map->ri, actor->gx, actor->gy));
+    actor->gx = x_temp;
 
 
 
@@ -194,5 +202,23 @@ int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)
 	glDisable(GL_BLEND);
 
     return 1;
+}
+
+void isoactor_iterate(struct isoactor *actor, struct isoeng *engine)
+{
+    if(actor->i_handler != NULL){
+        actor->i_handler(actor, engine);
+    }
+
+    actor->px = actor->x;
+    actor->py = actor->y;
+
+    actor->x += actor->vx;
+    actor->y += actor->vy;
+
+    actor->vx += actor->ax;
+    actor->vy += actor->ay;
+
+    return;
 }
 

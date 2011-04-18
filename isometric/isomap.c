@@ -15,28 +15,17 @@ void isomap_free(struct isomap *map)
     return ;
 }
 
-void iso_transform(struct isomap *map, double *x, double *y)
-{
-    double x_temp, y_temp;
-
-    x_temp = project_x(map->ri, *x, *y);
-    y_temp = project_y(map->ri, *x, *y);
-
-    *x = x_temp + map->h * map->tw/2;
-    *y = y_temp;
-
-    return;
-}
-
 struct isomap *isomap_create(const SDL_Rect *map_rect,
-        int w, int h, int tw, const char *filename,
-        const char *k, const char *m)
+        double groups, int w, int h, int tw,
+        const char *filename, const char *k, const char *m)
 {
     struct isomap *map;
 
     map = malloc(sizeof(*map));
     if(!map)
         return NULL;
+
+    map->groups = groups;
 
     map->w = w;
     map->h = h;
@@ -46,15 +35,18 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
 
     map->ri[0][0] = 1 / sqrt(2);
     map->ri[0][1] = -1 / sqrt(2);
+    map->ri[0][2] = map->h * map->tw/2;
     map->ri[1][0] = 1/ sqrt(6);
     map->ri[1][1] = 1/ sqrt(6);
+    map->ri[1][2] = 1;
 
     map->ir[0][0] = 1 / sqrt(2);
     map->ir[0][1] = 1 / sqrt(6);
+    //map->ir[0][2] = -map->h * map->tw/2;
     map->ir[1][0] = -1 / sqrt(2);
     map->ir[1][1] = 1 / sqrt(6);
+    map->ir[1][2] = 1;
 
-    map->coord_trans = iso_transform;
 
     memcpy(&(map->map_rect), map_rect, sizeof(map->map_rect));
 
@@ -159,8 +151,11 @@ int isomap_from_string(struct isomap *map, const char *k, const char *m)
     return 1;
 }
 
-void isomap_paint(struct isomap *map)
+void isomap_paint(struct isomap *map, struct isoeng *engine, double frame)
 {
+    struct isogrp *map_actors = isoeng_get_group(engine, map->groups);
+    struct isols *pg;
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0, map->map_rect.w, 0, map->map_rect.h,0.5, 0.0);
@@ -191,6 +186,11 @@ void isomap_paint(struct isomap *map)
     
 
     glDisable(GL_TEXTURE_2D);
+
+    /* Paint all the actors associated with this map */
+    for(pg = map_actors->ls; pg != NULL; pg = pg->next){
+        isoactor_paint(pg->actor, map, frame);
+    }
 
     return;
 }
