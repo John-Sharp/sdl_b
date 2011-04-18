@@ -5,8 +5,8 @@
 #define ACTOR_H 29
 #define WIN_W 460
 #define WIN_H 460
-#define MAP_W 6
-#define MAP_H 3
+#define MAP_W 8
+#define MAP_H 5
 #define FPS 800
 
 void printgrp(struct isogrp *grp)
@@ -27,12 +27,11 @@ struct isomap *isomap_test()
     struct isomap *map;
 
     map = isomap_create(&map_rect, MAP_W, MAP_H, 50, "test.png",
-            "abc", "cccccc"
-                   "cccccc"
-                   "ccaacc"
-                   "ccaacc"
-                   "cccccc"
-                   "cccccc");
+            "abc", "aacccccc"
+                   "accccccc"
+                   "cccccccc"
+                   "cccccccc"
+                   "ccccccca");
 
     return map;
 }

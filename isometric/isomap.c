@@ -110,34 +110,34 @@ int isomap_from_string(struct isomap *map, const char *k, const char *m)
     src.w = map->tw;
     src.h = map->th;
 
-    fprintf(stderr, "Width: %d, Height: %d \n", map->w, map->h);
-
     for(j = 0; j < map->h; j++)
         for(i = 0; i < map->w; i++){
-            float center_x, center_y, icenter_x, icenter_y;
+            /* The vector going from the center of one tile to the 
+             * center of the next tile in the map's x-direction
+             * is given by (map->tw/2, map->th/2).
+             * The vector going from the center of one tile to the
+             * center of the next tile in the map's y-direction
+             * is given by (-map->tw/2, map->th/2).
+             * The tiles belong in the position 
+             * with center i * mx + j * my.
+             * In addition to this a common translation in the 
+             * screen's x-direction of (map->tw/2 * (-1 + map->h), 0)
+             * should be made to ensure that the left hand side of the
+             * map is visible in the screen area */
+            dst.x = map->tw/2 * (i - j - 1 + map->h);
+            dst.y = map->th/2 * (i + j); 
 
-            center_x = i * map->tw / (sqrt(2)) + (float)map->tw / (2 * sqrt(2));
-            center_y = j * map->tw / (sqrt(2)) + (float)map->tw / (2 * sqrt(2));
-
-            icenter_x = project_x(map->ri, center_x, center_y);
-            icenter_y = project_y(map->ri, center_x, center_y);
-
-            fprintf(stderr, "%f %f\n", center_x, center_y);
-
-            fprintf(stderr, "%f %f\n", (project_x(map->ri, center_x, center_y)),
-                                       (project_y(map->ri, center_x, center_y)));
-
-            dst.x = icenter_x - map->tw/2 + (map->h) * map->tw/2;
-            dst.y = icenter_y - map->th /2;
-
-            fprintf(stderr, "%d %d\n", dst.x, dst.y);
+#ifdef DEBUG_MODE
+            fprintf(stderr, "Center of tile: %d %d ", dst.x, dst.y);
+#endif
 
             index = ((unsigned char(*)[map->w])map->map)[j][i];
+#ifdef DEBUG_MODE
             fprintf(stderr, "Index is: %d\n", index);
+#endif
             src.x = (index % (map->tilepalette->w / map->tw)) * map->tw;
             src.y = (index / (map->tilepalette->w / map->tw)) * map->th;
 
-            fprintf(stderr, "x: %d, y: %d, w: %d, h: %d\n", src.x, src.y, src.w, src.h);
 
             SDL_BlitSurface(map->tilepalette, &src, map_image, &dst);
         }
@@ -166,8 +166,6 @@ void isomap_paint(struct isomap *map)
     glOrtho(0, map->map_rect.w, 0, map->map_rect.h,0.5, 0.0);
     glViewport(map->map_rect.x, map->map_rect.y, map->map_rect.w,
             map->map_rect.h);
-
-//    fprintf(stderr, "%d, %d\n", map->rw, map->rh);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();

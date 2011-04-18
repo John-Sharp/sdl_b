@@ -111,8 +111,8 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
             /* Create an openGL texture and bind the sprite's image to it */
             glGenTextures(1, &(actor->textures[index]));
             glBindTexture(GL_TEXTURE_2D, actor->textures[index]);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite->w, sprite->h,
                     0, GL_RGBA, GL_UNSIGNED_BYTE, sprite->pixels);
