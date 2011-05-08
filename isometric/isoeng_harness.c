@@ -7,7 +7,7 @@
 #define WIN_H 460
 #define MAP_W 8
 #define MAP_H 5
-#define FPS 800
+#define FPS 3000
 
 void printgrp(struct isogrp *grp)
 {
@@ -23,7 +23,7 @@ void printgrp(struct isogrp *grp)
 
 struct isomap *isomap_test(unsigned int groups)
 {
-    SDL_Rect map_rect = {.x = 0, .y =0, .w = WIN_W, .h = WIN_H};
+    SDL_Rect map_rect = {.x = 100, .y =40, .w = WIN_W, .h = WIN_H};
     struct isomap *map;
 
     map = isomap_create(&map_rect, groups, MAP_W, MAP_H,
@@ -46,7 +46,9 @@ int main(void)
     struct isogrp *grp;
     struct isomap *map;
     Uint32 start_t, curr_t;
-    Uint32 c_frame = 0, p_frame = 0, elapsed_frames = 0;
+    Uint32 c_frame = 0, p_frame = 0;
+    double elapsed_frames = 0;
+    int ef = 0;
 
     int testgrp = 1, testgrp2 = 1<<1;
     int carry_on = 1;
@@ -81,28 +83,32 @@ int main(void)
     isoeng_del_actor(engine, actor[4]);
 
     actor[4] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", testgrp);
-    actor[4] = isoeng_new_actor(engine, ACTOR_W,
             ACTOR_H, "blob.png", 1<<4);
 
     printgrp(grp);
 
     map = isomap_test(1 << 4);
 
-    actor[4]->x = actor[4]->px = 30;
-    actor[4]->y = actor[4]->py = 40;
+    actor[4]->x = actor[4]->px = 0;
+    actor[4]->y = actor[4]->py = 0;
 
-    actor[4]->vx = 0.25;
-    actor[4]->vy = 0.1;
+    actor[4]->vx = 0.0025;
+    actor[4]->vy = 0.001;
 
 
 
 
 
     start_t = SDL_GetTicks();
+
     while(carry_on){
+
+        glClear(GL_COLOR_BUFFER_BIT);
+
+
         /* Do all the painting that is required */
         p_frame++;
+        
         isomap_paint(map, engine, elapsed_frames);
 
         glFlush();
@@ -111,9 +117,10 @@ int main(void)
         /* See whether it is time for a logic frame */
         curr_t = SDL_GetTicks();
         elapsed_frames = ((double)(curr_t - start_t) / 1000. * FPS) - c_frame; 
+        ef = (int)elapsed_frames;
 
         /* Work through all the logic frames */
-        while((int)elapsed_frames--){
+        while(ef--){
             struct isols *pl;
 
             c_frame++;

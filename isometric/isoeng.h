@@ -21,13 +21,21 @@
 
 /* A pair of macros to give the (x, y) components of the projection
  * of (r_x, r_y) using the projector matrix A */
-#define project_x(A, r_x, r_y) (A[0][0] * r_x + A[0][1] * r_y) 
-#define project_y(A, r_x, r_y) (A[1][0] * r_x + A[1][1] * r_y) 
+#define project_x(A, r_x, r_y) \
+    ((double)A[0][0] * (double)r_x + (double)A[0][1] * (double)r_y) 
+
+#define project_y(A, r_x, r_y) \
+    ((double)A[1][0] * (double)r_x + (double)A[1][1] * (double)r_y) 
 
 /* A pair of macros to give the (x, y) components of the projection
  * and translation of (r_x, r_y) using the augmented matrix A */
-#define project_a_x(A, r_x, r_y) (A[0][0] * r_x + A[0][1] * r_y + A[0][2])
-#define project_a_y(A, r_x, r_y) (A[1][0] * r_x + A[1][1] * r_y + A[1][2])
+#define project_a_x(A, r_x, r_y) \
+    ((double)A[0][0] * (double)r_x \
+        + (double)A[0][1] * (double)r_y + (double)A[0][2])
+
+#define project_a_y(A, r_x, r_y) \
+    ((double)A[1][0] * (double)r_x \
+     + (double)A[1][1] * (double)r_y + (double)A[1][2])
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 	enum { RMASK = 0xff000000, GMASK = 0x00ff0000,

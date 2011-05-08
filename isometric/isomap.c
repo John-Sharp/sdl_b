@@ -38,14 +38,14 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
     map->ri[0][2] = map->h * map->tw/2;
     map->ri[1][0] = 1/ sqrt(6);
     map->ri[1][1] = 1/ sqrt(6);
-    map->ri[1][2] = 1;
+    map->ri[1][2] = 0;
 
     map->ir[0][0] = 1 / sqrt(2);
     map->ir[0][1] = 1 / sqrt(6);
-    //map->ir[0][2] = -map->h * map->tw/2;
+    map->ir[0][2] = -map->h * map->tw/2;
     map->ir[1][0] = -1 / sqrt(2);
     map->ir[1][1] = 1 / sqrt(6);
-    map->ir[1][2] = 1;
+    map->ir[1][2] = 0;
 
 
     memcpy(&(map->map_rect), map_rect, sizeof(map->map_rect));
@@ -117,7 +117,7 @@ int isomap_from_string(struct isomap *map, const char *k, const char *m)
              * should be made to ensure that the left hand side of the
              * map is visible in the screen area */
             dst.x = map->tw/2 * (i - j - 1 + map->h);
-            dst.y = map->th/2 * (i + j); 
+            dst.y = map->h * map->th + map->th/2 - map->th/2 * (i + j); 
 
 #ifdef DEBUG_MODE
             fprintf(stderr, "Center of tile: %d %d ", dst.x, dst.y);
@@ -158,42 +158,42 @@ void isomap_paint(struct isomap *map, struct isoeng *engine, double frame)
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0, map->map_rect.w, 0, map->map_rect.h,0.5, 0.0);
+    glOrtho(0, map->map_rect.w, 0, map->map_rect.h, 0.5, 0.0);
     glViewport(map->map_rect.x, map->map_rect.y, map->map_rect.w,
             map->map_rect.h);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+
     glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, map->texname);
 
     glBegin(GL_QUADS);
 
-    glTexCoord2f(0.0, 0.0);
-    glVertex3f(0, 0, 0);
+    glTexCoord2d(0.0, 0.0);
+    glVertex2i(0, map->rh);
 
-    glTexCoord2f(0.0, 1.0);
-    glVertex3f(0, (float)map->rh, 0);
+    glTexCoord2d(0.0, 1.0);
+    glVertex2i(0, 0);
 
-    glTexCoord2f(1.0, 1.0);
-    glVertex3f((float)map->rw, (float)map->rh, 0);
+    glTexCoord2d(1.0, 1.0);
+    glVertex2i(map->rw, 0);
 
-    glTexCoord2f(1.0, 0.0);
-    glVertex3f((float)map->rw, 0 , 0);
+    glTexCoord2d(1.0, 0.0);
+    glVertex2i(map->rw, map->rh);
 
     glEnd();
+
     
 
-    glDisable(GL_TEXTURE_2D);
 
     /* Paint all the actors associated with this map */
     for(pg = map_actors->ls; pg != NULL; pg = pg->next){
         isoactor_paint(pg->actor, map, frame);
     }
 
+    glDisable(GL_TEXTURE_2D);
     return;
 }
-
-
 

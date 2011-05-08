@@ -41,6 +41,7 @@ void initialise_video(struct isoeng *engine, unsigned int win_w,
         unsigned int win_h)
 {
     int flags = SDL_OPENGL;
+    const SDL_VideoInfo *info = NULL;
     
     if(SDL_Init(SDL_INIT_VIDEO) == -1){
         fprintf(stderr, "Video initialisation failed: %s\n", SDL_GetError());
@@ -53,15 +54,21 @@ void initialise_video(struct isoeng *engine, unsigned int win_w,
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 5);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-    glClearColor(0.0, 0.0, 0.0, 0.0);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glDisable(GL_DEPTH);
-
-    engine->screen = SDL_SetVideoMode(win_w, win_h, 0, flags);
+    info = SDL_GetVideoInfo();
+    engine->screen = SDL_SetVideoMode(win_w, win_h, info->vfmt->BitsPerPixel, flags);
     if(!engine->screen){
         fprintf(stderr, "Failed to open screen!\n");
         exit(1);
     }
+
+    /* OpenGL initialisation */
+    glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, win_w, win_h, 0, -1, 1);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glDisable(GL_DEPTH);  /* This is a 2d program, no need for depth test */
 
     return;
 }
@@ -91,11 +98,11 @@ struct isols *isols_add_actor(struct isols *ls, struct isoactor *actor)
     if((ls = malloc(sizeof(*(ls)))) == NULL){
                     fprintf(stderr, "Error allocating list node\n");
                     exit(1);
-                }
+    }
 
     ls->next = next;
     ls->actor = actor;
-   return ls;
+    return ls;
 } 
 
 
@@ -155,7 +162,8 @@ struct isols *isols_matching_groupnum(struct isols *ls, unsigned int groupnum)
         struct isols *newnode;
 
         if((newnode = malloc(sizeof(*newnode))) == NULL){
-            fprintf(stderr, "Could not allocate memory for group %d\n", groupnum);
+            fprintf(stderr, "Could not allocate memory for group %d\n",
+                    groupnum);
         }
         newnode->actor = ls->actor;
         newnode->next = isols_matching_groupnum(ls->next, groupnum);
@@ -231,17 +239,7 @@ struct isogrp *isoeng_get_group(struct isoeng *engine, unsigned int groupnum)
     }
 
     return(gp);
-    
-
-#ifdef DEBUG_MODE
-    fprintf(stderr, "Should not reach here.\n");
-#endif
-
-    return NULL;
-            
 }
-
-/* TODO */
 
 struct isols *isols_del_actor(struct isols *ls, struct isoactor *actor)
 {

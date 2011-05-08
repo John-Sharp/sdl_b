@@ -27,8 +27,8 @@ struct isomap{
     int tw, th;        /* Size of one tile (pixels) */
     int rw, rh;        /* Real size of the map (pixels) */
 
-    float ri[2][3];      /* Real to isometric space projector */
-    float ir[2][3];      /* Isometric to real space projector */
+    double ri[2][3];      /* Real to isometric space projector */
+    double ir[2][3];      /* Isometric to real space projector */
 
     unsigned char *map; /* 2D array of tile indicies */
 

@@ -1,8 +1,8 @@
-/* isoactor.c
- * 16-04-11
- * Functions for creating/animating/destroying a character in a game
- *
- */
+    /* isoactor.c
+     * 16-04-11
+     * Functions for creating/animating/destroying a character in a game
+     *
+     */
 
 #include "isoeng.h"
 #include "isoactor.h"
@@ -27,9 +27,9 @@ void isoactor_free(struct isoactor *actor)
 struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
 {
     struct isoactor *actor;
+    Uint32 colourkey;
     int max_size, xpad, ypad; 
     int images_wide, images_high, hindex, windex, index;
-    Uint32 alpha;
     SDL_Surface *sprite, *image;
     SDL_Rect dst, src;
 
@@ -66,10 +66,9 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
         return NULL;
     }
 
-    /* Get the transparent colour from the newly loaded surface */
-    alpha = SDL_MapRGBA(image->format, 0, 0, 0, 0);
     /* Make SDL copy the alpha channel of the image */
     SDL_SetAlpha(image, 0, SDL_ALPHA_OPAQUE);
+    colourkey = SDL_MapRGBA(image->format, 0xff, 0x00, 0xff, 0);
 
     xpad = (actor->p2w - actor->w)/2;
     ypad = (actor->p2h - actor->h)/2;
@@ -78,7 +77,7 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
             actor->p2h, 32, RMASK, GMASK, BMASK, AMASK);
     if(!sprite){
         fprintf(stderr, "Error creating a surface for the sprites\n");
-       // jactor_free(actor);
+        isoactor_free(actor);
         return NULL;
     }
 
@@ -108,16 +107,17 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
 #ifdef DEBUG_MODE
             fprintf(stderr, "loading sprite index %d, ", index);
 #endif
-            SDL_FillRect(sprite, NULL, alpha);
+            SDL_FillRect(sprite, NULL, colourkey);
+            SDL_SetColorKey(image, SDL_SRCCOLORKEY, colourkey);
             SDL_BlitSurface(image, &src, sprite, &dst);
 
             /* Create an openGL texture and bind the sprite's image to it */
             glGenTextures(1, &(actor->textures[index]));
             glBindTexture(GL_TEXTURE_2D, actor->textures[index]);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite->w, sprite->h,
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, actor->p2w, actor->p2h,
                     0, GL_RGBA, GL_UNSIGNED_BYTE, sprite->pixels);
 
             src.x += actor->w;
@@ -127,7 +127,7 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
     }
 
 #ifdef DEBUG_MODE
-            fprintf(stderr, "\n");
+    fprintf(stderr, "\n");
 #endif
 
 
@@ -141,8 +141,8 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
 
 int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)
 {
-    double fframe = frame - floor(frame); /* fframe holds what fraction we
-                                             through the current frame */
+    double fframe = frame - floor(frame);  /* fframe holds what fraction we
+                                              through the current frame */
     int show_sprite = actor->show_sprite;
     double x_temp;
 
@@ -156,50 +156,63 @@ int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)
 
     /* Transforming the point where the actor should be drawn 
      * to the map's perspective */
-    x_temp = floor(project_a_x(map->ri, actor->gx, actor->gy));
-    actor->gy = floor(project_a_y(map->ri, actor->gx, actor->gy));
+    x_temp = project_a_x(map->ri, actor->gx, actor->gy);
+    actor->gy = project_a_y(map->ri, actor->gx, actor->gy);
     actor->gx = x_temp;
 
 
-
     /* Paint the actor's texture in the right place */
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
+    glMatrixMode(GL_TEXTURE);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, 2*actor->p2w, 0, 2*actor->p2h, -1, 1);
+
 
 
     /* Load the actor's texture */
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, actor->textures[actor->show_sprite]);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
 
     /* translating the actor's matrix to the point where the 
      * the actor should be drawn */
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glTranslatef(actor->gx , actor->gy , 0);
-
+    glTranslatef(actor->gx, actor->gy, 0);
+    glBindTexture(GL_TEXTURE_2D, actor->textures[actor->show_sprite]);
 
     /* Draw the actor */
+
+    GLint xpad, ypad;
+    xpad = (actor->p2w - actor->w) / 2.;
+    ypad = (actor->p2h - actor->h) / 2.;
+
+
     glBegin(GL_QUADS);
+    glColor3f(1.0f, 1.0f, 1.0f);
 
-    glTexCoord2f(0.0, 0.0);
-    glVertex3f(-(float)actor->p2w/2.0, -(float)actor->p2h/2.0, 0.0);
+    glTexCoord2d(xpad, ypad);
+    glVertex2i(-actor->w/2, actor->h/2);
 
-    glTexCoord2f(0.0, 1.0);
-    glVertex3f(-(float)actor->p2w/2.0, (float)actor->p2h/2.0, 0.0);
+    glTexCoord2d(xpad, ypad + actor->h);
+    glVertex2i(-actor->w/2, -actor->h/2);
 
-    glTexCoord2f(1.0, 1.0);
-    glVertex3f((float)actor->p2w/2.0, (float)actor->p2h/2.0, 0.0);
+    glTexCoord2d(xpad + actor->w, ypad + actor->h);
+    glVertex2i(actor->w/2, -actor->h/2);
 
-    glTexCoord2f(1.0, 0.0);
-    glVertex3f((float)actor->p2w/2.0, -(float)actor->p2h/2.0, 0.0);
+    glTexCoord2d(xpad + actor->w, ypad);
+    glVertex2i(actor->w/2, actor->h/2);
+
 
     glEnd();
-    
 
-    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_BLEND);
 
-	glDisable(GL_BLEND);
+    glPopMatrix();
+    glMatrixMode(GL_TEXTURE);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
 
     return 1;
 }

@@ -13,10 +13,10 @@
 
 struct isoactor{       /* A character in the game */
     unsigned int uid;           /* Unique identifier for actor */
-    double x, y;                /* x, y coordinates of actor */
-    double px, py;              /* x, y coordinates from previous frame */
-    double gx, gy;              /* x, y coordinates of actor's interpolated
-                                   position in fractional frame */
+    GLfloat x, y;               /* x, y coordinates of actor */
+    GLfloat px, py;             /* x, y coordinates from previous frame */
+    GLfloat gx, gy;             /* x, y coordinates of actor's interpolated
+                                  position in fractional frame */
 
     double vx, vy;              /* x and y components of velocity */
     double ax, ay;              /* x and y components of acceleration */
