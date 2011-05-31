@@ -11,6 +11,25 @@
 #define MAX_SPRITES 15 /* Maximum number of sprite frames that an actor
                           can have */
 
+
+enum isoside{ /* Contains the sides of a tile that can be collided with */
+    LEFT,
+    RIGHT,
+    TOP,
+    BOTTOM 
+};
+
+struct map_handle_ls{ /* A list of map collision handlers */
+    struct map_handle_ls *next;
+    struct isomap *map;
+    unsigned int tiles; /* Bit-wise OR of all tiles that this collision handler
+                           should be fired for */
+    void (*map_handler)(struct isoactor *actor, struct isomap *map,
+            unsigned int tile, enum isoside side); /* Pointer to the 
+                                                      collision handler
+                                                      function */
+};
+
 struct isoactor{       /* A character in the game */
     unsigned int uid;           /* Unique identifier for actor */
     GLfloat x, y;               /* x, y coordinates of actor */
@@ -39,6 +58,13 @@ struct isoactor{       /* A character in the game */
     void (*i_handler)(struct isoactor *, \
             struct isoeng *); /* Iteration handler that gets called on
                                  each logic frame */
+
+    struct map_handle_ls *map_handlers[MAX_MAPS];
+                                /* Array of handle lists (one for each
+                                   map), each list contains a list of 
+                                   collision handlers detailing what should
+                                   be done for collision with certain tiles
+                                   on the map */ 
 };
 
 /* Frees the resources allocated to the actor */
@@ -47,6 +73,25 @@ void isoactor_free(struct isoactor *actor);
 /* Creates a new actor, of width 'w', height 'h', using the image file located
  * at 'sprite_filename' to source the sprite images */ 
 struct isoactor *isoactor_create(int w, int h, const char *sprite_filename);
+
+/* Sets a collision handler for the actor. The handler is such that it 
+ * will be called everytime 'actor' steps on one of 'tiles' in 'map'.
+ * The tiles are given as a string in the same way as the map gets
+ * specified, and the same key as was used to specify 'map' is used
+ * to look up the tiles */ 
+void set_map_handler(struct isoactor *actor, struct isomap *map, 
+        const char *tiles,
+        void (*handler)(struct isoactor *,
+                        struct isomap *,
+                        unsigned int, enum isoside));
+
+/* Unsets the handler 'handle' that gets fired when 'actor' steps on
+ * one of the 'tiles' in 'map' */
+void uset_map_handler(struct isoactor *actor, struct isomap *map, 
+        const char *tiles,
+        void (*handler)(struct isoactor *,
+                        struct isomap *,
+                        unsigned int, enum isoside));
 
 /* Paint the actor, on the map 'map'. 'frame' is the frame that the game is 
  * currently on */

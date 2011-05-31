@@ -14,26 +14,33 @@ static void isogrp_free(struct isogrp *group);
 
 void isoeng_free(struct isoeng *engine)
 {
-    struct isogrp *p;
-    struct isols *q;
+    struct isogrp *p, *s;
+    struct isols *q, *r;
 
-    for(p = engine->groups; p != NULL; p = p->next){
-       isogrp_free(p);
+    for(p = engine->groups; p != NULL; ){
+        isogrp_free(p);
+        s = p;
+        p = p->next;
+        free(s);
     }
 
-    for(q=engine->actors; q!=NULL; q=q->next){
+    for(q=engine->actors; q!=NULL; ){
         isoactor_free(q->actor);
-        free(q);
+        r = q;
+        q = q->next;
+        free(r);
     }
 
 } 
 
 void isogrp_free(struct isogrp *group)
 {
-    struct isols *p;
+    struct isols *p, *q;
 
-    for(p=group->ls; p!=NULL; p=p->next){
-        free(p);
+    for(p=group->ls; p!=NULL; ){
+        q = p;
+        p = p->next;
+        free(q);
     }
 }
 

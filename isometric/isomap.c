@@ -15,15 +15,29 @@ void isomap_free(struct isomap *map)
     return ;
 }
 
+
+static int isomap_set_cmap(struct isomap *map, const char *ck, const char *cm);
+
 struct isomap *isomap_create(const SDL_Rect *map_rect,
         double groups, int w, int h, int tw,
-        const char *filename, const char *k, const char *m)
+        const char *filename, const char *k, const char *m,
+        const char *ck, const char *cm)
 {
+    static unsigned int uid = 0;
     struct isomap *map;
+
+    if(uid + 1 > MAX_MAPS){
+        fprintf(stderr, "Game contains more maps than is allowed by the "
+                "engine\n");
+        return NULL;
+    }
 
     map = malloc(sizeof(*map));
     if(!map)
         return NULL;
+
+    map->uid = uid;
+    uid++;
 
     map->groups = groups;
 
@@ -40,15 +54,17 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
     map->ri[1][1] = 1/ sqrt(6);
     map->ri[1][2] = 0;
 
-    map->ir[0][0] = 1 / sqrt(2);
-    map->ir[0][1] = 1 / sqrt(6);
+    map->ir[0][0] = sqrt(2);
+    map->ir[0][1] = sqrt(6) / 2;
     map->ir[0][2] = -map->h * map->tw/2;
-    map->ir[1][0] = -1 / sqrt(2);
-    map->ir[1][1] = 1 / sqrt(6);
+    map->ir[1][0] = -sqrt(2);
+    map->ir[1][1] = -sqrt(6) / 2;
     map->ir[1][2] = 0;
 
 
     memcpy(&(map->map_rect), map_rect, sizeof(map->map_rect));
+    //map->itw = project_y(map->ir, map->tw/2, map->th/2);
+    map->itw = map->tw / sqrt(2);
 
     map->rw = (project_x(map->ri, map->w, 0) - project_x(map->ri, 0, map->h))
          / sqrt(2) * (float)map->tw;
@@ -74,8 +90,39 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
         return NULL;
     }
 
+    if(!isomap_set_cmap(map, ck, cm)){
+        isomap_free(map);
+        return NULL;
+    }
+
+    map->i_handler = NULL;
+
+    map->ob_handler = isomap_ob_handler;
+
     return map;
 }
+
+static int isomap_set_cmap(struct isomap *map, const char *ck, const char *cm)
+{
+    map->c_map = malloc(sizeof(*(map->c_map)) * strlen(cm));
+    map->c_key = malloc(sizeof(*(map->c_key)) * (strlen(ck) + 1));
+
+    if(map->c_map == NULL || map->c_key == NULL){
+        return 0;
+    }
+
+    strcpy(map->c_key, ck);
+
+    int i = 0;
+    int index;
+    for(i = 0; i < strlen(cm); i++){
+        index = ((strchr(ck, cm[i]) - ck) / sizeof(unsigned char));
+        map->c_map[i] = 1 << index;
+    }
+
+    return 1;
+}
+
 
 int isomap_from_string(struct isomap *map, const char *k, const char *m)
 {
@@ -194,6 +241,72 @@ void isomap_paint(struct isomap *map, struct isoeng *engine, double frame)
     }
 
     glDisable(GL_TEXTURE_2D);
+    return;
+}
+
+void isomap_iterate(struct isomap *map, struct isoeng *engine)
+{
+    struct isogrp *map_actors = isoeng_get_group(engine, map->groups);
+    struct isols *pg;
+    int prev_tile, curr_tile;
+
+    for(pg = map_actors->ls; pg != NULL; pg = pg->next){
+
+        /* Checking if actor has strayed over the edge of the map,
+         * in which case the over-boundary handler should be called */
+        if(pg->actor->x / map->itw > map->w ||
+           pg->actor->y / map->itw > map->h ||
+           pg->actor->x / map->itw < 0 ||
+           pg->actor->y / map->itw < 0){
+ #ifdef DEBUG_MODE
+            fprintf(stderr, "Actor has strayed over boundary\n");
+#endif
+            map->ob_handler(map, pg->actor);
+        }
+           
+
+
+        prev_tile = pg->actor->px / map->itw +
+            (int)(pg->actor->py / map->itw) % map->w * (map->w);
+        curr_tile = pg->actor->x / map->itw +
+            (int)(pg->actor->y / map->itw) % map->w * (map->w);
+
+        
+
+        /* If over a new tile, check the map collision handlers for this actor
+         * on this map, and call the appropriate one(s) if the current tile
+         * index matches the tile-flag */
+        if(curr_tile != prev_tile){
+
+            
+#ifdef DEBUG_MODE
+            fprintf(stderr, "Tile number: %d tile type: %d\n", curr_tile, map->map[curr_tile]);
+#endif
+
+            struct map_handle_ls *ph;
+            for(ph = pg->actor->map_handlers[map->uid];
+                    ph != NULL; ph = ph->next){
+                if(ph->tiles & map->c_map[curr_tile]){
+                    /* TODO: Need to work out what side of the tile
+                     * has been hit and pass it to the map handler
+                     * function */
+                    ph->map_handler(pg->actor, map, curr_tile, 0);
+                }
+            }
+        }
+    }
+
+    if(map->i_handler != NULL){
+        map->i_handler(map, engine);
+    }
+
+}
+
+void isomap_ob_handler(struct isomap *map, struct isoactor *actor)
+{
+    actor->x = actor->px;
+    actor->y = actor->py;
+
     return;
 }
 

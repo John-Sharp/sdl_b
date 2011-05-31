@@ -18,6 +18,16 @@ void isoactor_free(struct isoactor *actor)
         if(glIsTexture(actor->textures[i]))
             glDeleteTextures(1, &(actor->textures[i]));
 
+    for(i = 0; i < MAX_MAPS; i++){
+        struct map_handle_ls *hp, *hq;
+
+        for(hp = actor->map_handlers[i]; hp != NULL; ){
+
+            hq = hp;
+            hp = hp->next;
+            free(hq);
+        }
+    }
 
     free(actor);
 
@@ -134,9 +144,110 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
     SDL_FreeSurface(image);
     SDL_FreeSurface(sprite);
 
+    int i;
+    for(i = 0; i < MAX_MAPS; i++){
+        actor->map_handlers[i] = NULL;
+    }
+
+
     actor->i_handler = NULL;
 
     return actor;
+}
+
+static struct map_handle_ls *map_handler_add(struct map_handle_ls *ls,
+        struct isomap *map, const char *tiles,
+        void (*map_handler)(struct isoactor *, struct isomap *,
+                        unsigned int tile, enum isoside))
+{
+    struct map_handle_ls *hp;
+
+    hp = malloc(sizeof(*hp));
+
+    if(hp == NULL){
+        fprintf(stderr, "Unable to allocate memory for a "
+                "list handler node.\n");
+        exit(1);
+    }
+    hp->map = map;
+
+    int i = 0;
+    for(i = 0; i < strlen(tiles); i++){
+        int index = 0;
+        index = ((strchr(map->c_key, tiles[i]) - map->c_key) / sizeof(unsigned char));
+        hp->tiles |= 1 << index;
+    }
+
+    hp->map_handler = map_handler;
+    hp->next = ls;
+
+    return hp;
+}
+
+static struct map_handle_ls *map_handler_del(struct map_handle_ls *ls,
+                                         struct isomap *map,
+                                         unsigned int tiles,
+                        void (*map_handler)(struct isoactor *,
+                            struct isomap *, unsigned int, enum isoside))
+{
+    if(ls == NULL){
+        return NULL;
+    }
+
+    if(ls->map->uid == map->uid && ls->map_handler == map_handler){
+
+        /* Make the handler insensitive to the correct tiles */
+        ls->tiles &= ~tiles;
+
+        if(tiles != 0) /* This handler still applies to some tiles */
+            return ls;
+
+        /* This handler applies to no more tiles and can be deleted */
+        struct map_handle_ls *p = ls->next;
+        free(ls);
+        return p;
+    }
+
+    ls->next = map_handler_del(ls->next, map, tiles, map_handler);
+    return ls;
+}
+
+
+void set_map_handler(struct isoactor *actor, struct isomap *map, 
+        const char *tiles,
+        void (*handler)(struct isoactor *,
+                        struct isomap *,
+                        unsigned int, enum isoside))
+{
+
+    actor->map_handlers[map->uid] = 
+        map_handler_add(actor->map_handlers[map->uid], map, tiles,
+            handler);
+
+    return;
+}
+
+void uset_map_handler(struct isoactor *actor, struct isomap *map, 
+        const char *tiles,
+        void (*handler)(struct isoactor *,
+                        struct isomap *,
+                        unsigned int, enum isoside))
+{
+    unsigned int tilemask = 0;
+
+    int i = 0;
+    for(i = 0; i < strlen(tiles); i++){
+        int index = 0;
+        index = ((strchr(map->c_key, tiles[i]) - map->c_key) / sizeof(unsigned char));
+        tilemask |= 1 << index;
+    }
+
+
+    actor->map_handlers[map->uid] = 
+        map_handler_del(actor->map_handlers[map->uid], map, tilemask,
+            handler);
+
+    return;
 }
 
 int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)

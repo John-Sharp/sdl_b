@@ -21,6 +21,50 @@ void printgrp(struct isogrp *grp)
     printf("\n");
 }
 
+/* An example iteration handler that checks for a cursor
+ * character being depressed and changes the actor's velocity */
+void player_input_handler(struct isoactor *actor, struct isoeng *engine)
+{
+    SDL_Event selection;
+
+    if(SDL_PeepEvents(&selection, 1,
+                SDL_GETEVENT, SDL_EVENTMASK(SDL_KEYDOWN) |
+                              SDL_EVENTMASK(SDL_KEYUP))){
+        switch(selection.key.keysym.sym){
+            case SDLK_j:
+                printf("j pressed\n");
+                if(selection.key.type == SDL_KEYDOWN){
+                    actor->vy = -0.01;
+                    printf("moving down\n");
+                }else
+                    actor->vy = 0;
+                break;
+            case SDLK_k:
+                if(selection.key.type == SDL_KEYDOWN)
+                    actor->vy = 0.01;
+                else
+                    actor->vy = 0;
+                break;
+            case SDLK_l:
+                if(selection.key.type == SDL_KEYDOWN)
+                    actor->vx = 0.01;
+                else
+                    actor->vx = 0;
+                break;
+            case SDLK_h:
+                if(selection.key.type == SDL_KEYDOWN)
+                    actor->vx = -0.01;
+                else
+                    actor->vx = 0;
+                break;
+            default:
+                SDL_PushEvent(&selection);
+        }
+    }
+
+    return;
+}
+ 
 struct isomap *isomap_test(unsigned int groups)
 {
     SDL_Rect map_rect = {.x = 100, .y =40, .w = WIN_W, .h = WIN_H};
@@ -32,9 +76,25 @@ struct isomap *isomap_test(unsigned int groups)
                    "accccccc"
                    "cccccccc"
                    "cccccccc"
+                   "ccccccca",
+            "abc", "aacccccc"
+                   "accccccc"
+                   "cccccccc"
+                   "cccccccc"
                    "ccccccca");
 
+
     return map;
+}
+
+void over_red_handler(struct isoactor *actor, struct isomap *map,
+        unsigned int tile, enum isoside side)
+{
+    fprintf(stderr, "Over red and over here!\n");
+
+    uset_map_handler(actor, map, "a", over_red_handler);
+
+    return;
 }
    
 
@@ -92,8 +152,8 @@ int main(void)
     actor[4]->x = actor[4]->px = 0;
     actor[4]->y = actor[4]->py = 0;
 
-    actor[4]->vx = 0.0025;
-    actor[4]->vy = 0.001;
+    actor[4]->i_handler = player_input_handler;
+    set_map_handler(actor[4], map, "a", over_red_handler);
 
 
 
@@ -135,6 +195,9 @@ int main(void)
             for(pl = engine->actors; pl != NULL; pl = pl->next){
                 isoactor_iterate(pl->actor, engine);
             }
+
+            /* Call iterator for map */
+            isomap_iterate(map, engine);
 
         }
     }
