@@ -58,7 +58,9 @@ struct isogrp{        /* A group is a list of actors, this struct is
 };
 
 struct isoeng{        /* Isometric engine */
-    struct isols *actors; /*Canonical list of actors in the game */
+    int ctw, cth;         /* Width and height of tiles that make up 
+                             collision maps used by actors */
+    struct isols *actors; /* Canonical list of actors in the game */
     struct isogrp *groups; /* List of groups in the engine */
 
     SDL_Surface *screen; /* Main game window surface */
@@ -66,6 +68,9 @@ struct isoeng{        /* Isometric engine */
 
 struct isoactor;
 struct isomap;
+
+/* Utility function to get a pixel at ('x', 'y') from a surface */
+Uint32 get_pixel(SDL_Surface *surface, int x, int y);
 
 #include "isomap.h"
 #include "isoactor.h"
@@ -75,14 +80,18 @@ struct isomap;
 void isoeng_free(struct isoeng *engine);
 
 /* Creates the isomap engine */
-struct isoeng *isoeng_create(unsigned int win_w, unsigned int win_h);
+struct isoeng *isoeng_create(unsigned int win_w, unsigned int win_h,
+        int ctw, int cth);
 
 /* Creates a new actor inside the group(s) satisfying the group number
  * 'groupnum' in 'engine'. Actor has width 'w', height 'h' and the image
- * file 'sprite_file_name' contains the sprites to be used for this actor.
+ * file 'sprite_filename' contains the sprites to be used for this actor.
+ * Image file 'c_sprite_filename' contains the collision sprites to be
+ * used for this actor, and these sprites are of width 'cw' height 'ch'.
  * Returns reference to actor is this is successful or 0 if not. */
 struct isoactor *isoeng_new_actor(struct isoeng *engine, int w, int h,
-        const char *sprite_file_name, unsigned int groupnum);
+        const char *sprite_filename, int cw, int ch,
+        const char *c_sprite_filename, unsigned int groupnum);
 
 /* Deletes the actor 'actor' and frees its resources */
 void isoeng_del_actor(struct isoeng *engine, struct isoactor *actor);

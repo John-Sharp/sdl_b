@@ -18,14 +18,29 @@ void isoactor_free(struct isoactor *actor)
         if(glIsTexture(actor->textures[i]))
             glDeleteTextures(1, &(actor->textures[i]));
 
+    for(i = 0; ; i++){
+        if(actor->cfields[i] == NULL){
+            break;
+        }
+        free(actor->cfields[i]);
+    }
+
     for(i = 0; i < MAX_MAPS; i++){
         struct map_handle_ls *hp, *hq;
+        struct actor_handle_ls *ahp, *ahq;
 
         for(hp = actor->map_handlers[i]; hp != NULL; ){
 
             hq = hp;
             hp = hp->next;
             free(hq);
+        }
+
+        for(ahp = actor->actor_handlers[i]; ahp != NULL; ){
+
+            ahq = ahp;
+            ahp = ahp->next;
+            free(ahq);
         }
     }
 
@@ -34,7 +49,117 @@ void isoactor_free(struct isoactor *actor)
     return;
 }
 
-struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
+static void isoactor_load_cfields(struct isoactor *actor, int ctw,
+        int cth, const char *c_sprite_filename)
+{
+    SDL_Surface *image;
+    int images_wide, images_high;
+    int hindex, windex, index;
+    int ba_h = ceil(actor->ch / cth); /* Height of the bitmask array */
+    int ba_w = ceil(actor->cw / ctw); /* Width of the bitmask array */
+    int (*ba)[ba_w]; /* Bitmask array */
+    Uint32 maskcolour;
+
+    if(ba_w > sizeof(*(actor->cfields[0])) * CHAR_BIT){
+        fprintf(stderr, "Error! Collision tilemap is too wide "
+                "for bitmask variable. \n");
+        return;
+    }
+
+    /* Load the image file that contains the collision sprites */
+    image = IMG_Load(c_sprite_filename);
+    if(!image){
+        fprintf(stderr, "Error! Could not load collision sprite: %s\n",
+                c_sprite_filename);
+        return;
+    }
+
+    maskcolour = SDL_MapRGB(image->format, 0, 0, 0);
+
+    /* Calculate how many sprite images are contained on the
+     * surface we have been given */
+    images_wide = (int)(image->w/actor->cw);
+    images_high = (int)(image->h/actor->ch);
+
+    ba = malloc(ba_h * ba_w * sizeof(*ba));
+    if(!ba){
+        fprintf(stderr, "Error! Could not malloc bitmask array\n");
+        SDL_FreeSurface(image);
+        return;
+    }
+
+
+    for(hindex = 0; hindex < images_high; hindex++){
+        for(windex = 0; windex < images_wide; windex++){
+            index = hindex * images_wide + windex;
+
+            memset(ba, 0, sizeof(ba) * ba_h * ba_w);
+#ifdef DEBUG_MODE
+            fprintf(stderr, "loading collision sprite index %d\n\n", index);
+#endif
+            SDL_LockSurface(image);
+
+            int i, j;
+            for(i = 0; i < actor->ch; i++){
+                for(j = 0; j < actor->cw; j++){
+                    if(get_pixel(image, j + windex * actor->cw,
+                                i + hindex * actor->ch) == maskcolour){
+                        ba[i / cth][j / ctw] += 1;
+                    }
+                }
+            }
+
+            SDL_UnlockSurface(image);
+
+            actor->cfields[index] = malloc(ba_h *
+                    sizeof(*(actor->cfields[index])));
+            if(!(actor->cfields[index])){
+                fprintf(stderr,
+                 "Error! Could not allocate memory for collision bit-field\n");
+                return;
+            }
+            memset(actor->cfields[index], 0, ba_h *
+                    sizeof(*(actor->cfields[index])));
+
+
+            for(i = 0; i < ba_h; i++){
+                for(j = 0; j < ba_w; j++){
+                    if(ba[i][j] > ctw * cth / 2.){
+                        /* This line produces the binary number
+                         * 00010000000 where there are j 0's before
+                         * the leading 1 */
+                        actor->cfields[index][i] |= 1UL << 
+                            (CHAR_BIT * sizeof(*(actor->cfields[index])) - j - 1);
+#ifdef DEBUG_MODE
+                        fprintf(stderr, "1");
+#endif
+
+                    }else{
+#ifdef DEBUG_MODE
+                        fprintf(stderr, "0");
+#endif
+                    }
+                }
+#ifdef DEBUG_MODE
+                fprintf(stderr, "\n");
+#endif
+
+            }
+        }
+    }
+
+#ifdef DEBUG_MODE
+    fprintf(stderr, "\n");
+#endif
+
+    free(ba);
+
+    return;
+}
+
+struct isoactor *isoactor_create(int w, int h, const char *sprite_filename,
+                                 int ctw, int cth, int cw, int ch,
+                                 const char *c_sprite_filename)
 {
     struct isoactor *actor;
     Uint32 colourkey;
@@ -64,7 +189,8 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
 
     if(actor->p2w > max_size || actor->p2h > max_size){
-        fprintf(stderr, "Image size (%d, %d) exceeds maximum texture size (%d)\n",
+        fprintf(stderr, "Image size (%d, %d) exceeds "
+                "maximum texture size (%d)\n",
                 actor->p2w, actor->p2h, max_size);
         return NULL;
     }
@@ -112,7 +238,7 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
 
     for(hindex = 0; hindex < images_high; hindex++){
         for(windex = 0; windex < images_wide; windex++){
-            index = windex + hindex;
+            index = windex + hindex * images_wide;
 
 #ifdef DEBUG_MODE
             fprintf(stderr, "loading sprite index %d, ", index);
@@ -140,13 +266,28 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename)
     fprintf(stderr, "\n");
 #endif
 
+    actor->cw = cw;
+    actor->ch = ch;
+
+    actor->cth = cth;
+    actor->ctw = ctw;
+
+    int i;
+    for(i = 0; i < MAX_SPRITES; i++){
+        actor->cfields[i] = NULL;
+    }
+
+    isoactor_load_cfields(actor, ctw, cth, c_sprite_filename);
+    
 
     SDL_FreeSurface(image);
     SDL_FreeSurface(sprite);
 
-    int i;
     for(i = 0; i < MAX_MAPS; i++){
         actor->map_handlers[i] = NULL;
+
+        actor->actor_handlers[i] = NULL;
+        actor->collision_groups[i] = 0;
     }
 
 
@@ -170,11 +311,13 @@ static struct map_handle_ls *map_handler_add(struct map_handle_ls *ls,
         exit(1);
     }
     hp->map = map;
+    hp->tiles = 0;
 
     int i = 0;
     for(i = 0; i < strlen(tiles); i++){
         int index = 0;
-        index = ((strchr(map->c_key, tiles[i]) - map->c_key) / sizeof(unsigned char));
+        index = ((strchr(map->c_key, tiles[i]) - map->c_key)
+                / sizeof(unsigned char));
         hp->tiles |= 1 << index;
     }
 
@@ -212,7 +355,6 @@ static struct map_handle_ls *map_handler_del(struct map_handle_ls *ls,
     return ls;
 }
 
-
 void set_map_handler(struct isoactor *actor, struct isomap *map, 
         const char *tiles,
         void (*handler)(struct isoactor *,
@@ -227,6 +369,7 @@ void set_map_handler(struct isoactor *actor, struct isomap *map,
     return;
 }
 
+
 void uset_map_handler(struct isoactor *actor, struct isomap *map, 
         const char *tiles,
         void (*handler)(struct isoactor *,
@@ -238,7 +381,8 @@ void uset_map_handler(struct isoactor *actor, struct isomap *map,
     int i = 0;
     for(i = 0; i < strlen(tiles); i++){
         int index = 0;
-        index = ((strchr(map->c_key, tiles[i]) - map->c_key) / sizeof(unsigned char));
+        index = ((strchr(map->c_key, tiles[i]) - map->c_key)
+                / sizeof(unsigned char));
         tilemask |= 1 << index;
     }
 
@@ -248,6 +392,184 @@ void uset_map_handler(struct isoactor *actor, struct isomap *map,
             handler);
 
     return;
+}
+
+
+static struct actor_handle_ls *actor_handler_add(struct actor_handle_ls *ls,
+        unsigned int groups, void (*actor_handler)(struct isoactor *,
+            struct isoactor *))
+{
+    struct actor_handle_ls *hp;
+
+    hp = malloc(sizeof(*hp));
+
+    if(hp == NULL){
+        fprintf(stderr, "Unable to allocate memory for a "
+                "list handler node.\n");
+        exit(1);
+    }
+
+    hp->groups = groups;
+    hp->actor_handler = actor_handler;
+
+    hp->next = ls;
+
+    return hp;
+}
+
+static struct actor_handle_ls *actor_handler_del(struct actor_handle_ls *ls,
+        unsigned int groups, void (*actor_handler)(struct isoactor *,
+            struct isoactor *))
+{
+    if(ls == NULL){
+        return NULL;
+    }
+
+    if(groups & ls->groups && ls->actor_handler == actor_handler){
+
+        ls->groups &= ~groups;
+
+        if(groups != 0)
+            return ls;
+
+        struct actor_handle_ls *p = ls->next;
+        free(ls);
+        return p;
+    }
+
+    ls->next = actor_handler_del(ls->next, groups, actor_handler);
+    return ls;
+}
+
+void set_actor_handler(struct isoactor *actor, struct isomap *map,
+        unsigned int groups,
+        void (*handler)(struct isoactor *, struct isoactor *))
+{
+    actor->actor_handlers[map->uid] = 
+        actor_handler_add(actor->actor_handlers[map->uid], groups,
+                handler);
+
+    actor->collision_groups[map->uid] |= groups;
+
+    return;
+}
+
+void uset_actor_handler(struct isoactor *actor, struct isomap *map,
+        unsigned int groups,
+        void (*handler)(struct isoactor *, struct isoactor *))
+{
+    struct actor_handle_ls *hp;
+
+    actor->actor_handlers[map->uid] =
+        actor_handler_del(actor->actor_handlers[map->uid], groups,
+                handler);
+
+    actor->groups = 0;
+    for(hp = actor->actor_handlers[map->uid];
+            hp != NULL; hp = hp->next){
+        actor->groups |= hp->groups;
+    }
+
+    return;
+}
+
+static int isoactor_calc_overlap_l(double a1, double a2, double b1, double b2,
+        struct isoactor_overlap_l *overlap)
+{
+    if(a1 < b1){
+        if(a2 < b1){
+            return 0;
+        }
+        overlap->a1_offset = b1 - a1;
+        overlap->a2_offset = 0;
+
+        if(a2 < b2){
+            overlap->overlap = a2 - b1;
+        }else{
+            overlap->overlap = b2 - b1;
+        }
+
+        //return 1;
+    }else{
+        if(b2 < a1){
+            return 0;
+        }
+
+        overlap->a1_offset = 0;
+        overlap->a2_offset = a1 - b1;
+
+        if(b2 < a2){
+            overlap->overlap = b2 - a1;
+        }else{
+            overlap->overlap = a2 - a1;
+        }
+
+        //return 1;
+    }
+
+
+
+    return 1;
+}
+
+int isoactor_calc_overlap(struct isoactor *a1, struct isoactor *a2,
+        struct isomap *map, struct isoactor_overlap *overlap)
+{
+    double a1x = project_a_x(map->ri, a1->x, a1->y);
+    double a1y = project_a_y(map->ri, a1->x, a1->y);
+    double a2x = project_a_x(map->ri, a2->x, a2->y);
+    double a2y = project_a_y(map->ri, a2->x, a2->y);
+
+    if(!isoactor_calc_overlap_l(a1x - (double)(a1->cw/2),
+                a1x + (double)(a1->cw)/2,
+                a2x - (double)(a2->cw)/2,
+                a2x + (double)(a2->cw)/2, &(overlap->x))){
+        return 0;
+    }
+
+    if(!isoactor_calc_overlap_l(a1y - (double)(a1->ch)/2,
+                a1y + (double)(a1->ch)/2, a2y - (double)(a2->ch)/2,
+                a2y + (double)(a2->ch)/2, &(overlap->y))){
+        return 0;
+    }
+
+    return 1;
+}
+
+int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
+        struct isomap *map, struct isoactor_overlap *overlap)
+{
+    int i;
+    int ctw = a1->ctw;
+    int cth = a1->cth;
+
+    for(i = 0; i < overlap->y.overlap / cth; i++){
+        unsigned long bf1 = a1->cfields[map->uid]
+            [i + (int)(overlap->y.a1_offset/cth)];
+        unsigned long bf2 = a2->cfields[map->uid]
+            [i + (int)(overlap->y.a2_offset/cth)];
+
+        bf1 = (bf1 << (int)(overlap->x.a1_offset/ctw)) /* Shift the bit-field
+                                                          so the left-most 
+                                                          figure corresponds 
+                                                          to the start of the
+                                                          overlap */
+
+            & ((~0) << (CHAR_BIT * sizeof(unsigned long)
+                        - (int)(overlap->x.overlap/ctw))); /* Trim the bitfield
+                                                              so that it as
+                                                              wide as the 
+                                                              overlap */
+
+        bf2 = (bf2 << (int)(overlap->x.a2_offset/ctw))
+            & ((~0) << (CHAR_BIT * sizeof(unsigned long)
+                        - (int)(overlap->x.overlap/ctw)));
+
+        if(bf1 & bf2)
+            return 1;
+    }
+
+    return 0;
 }
 
 int isoactor_paint(struct isoactor *actor, struct isomap *map, double frame)

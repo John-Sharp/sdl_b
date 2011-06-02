@@ -247,7 +247,7 @@ void isomap_paint(struct isomap *map, struct isoeng *engine, double frame)
 void isomap_iterate(struct isomap *map, struct isoeng *engine)
 {
     struct isogrp *map_actors = isoeng_get_group(engine, map->groups);
-    struct isols *pg;
+    struct isols *pg, *qg;
     int prev_tile, curr_tile;
 
     for(pg = map_actors->ls; pg != NULL; pg = pg->next){
@@ -300,6 +300,50 @@ void isomap_iterate(struct isomap *map, struct isoeng *engine)
         map->i_handler(map, engine);
     }
 
+    /* Checking for actor-actor collision on this map */
+    for(pg = map_actors->ls; pg != NULL; pg = pg->next){
+        struct isoactor *a1 = pg->actor;
+        for(qg = pg->next; qg != NULL; qg = qg->next){
+            struct isoactor *a2 = qg->actor;
+
+            /* Check if actors are primed to detect collision with
+             * one another */
+            if(a1->collision_groups[map->uid] & a2->groups ||
+                    a2->collision_groups[map->uid] & a1->groups){
+                struct isoactor_overlap overlap;
+
+                /* Check if the actors' simple rectangle overlap
+                 * exists */
+                if(isoactor_calc_overlap(a1, a2, map, &overlap)){
+
+                    /* Check if actors' are bitwise colliding */
+                    if(isoactor_bw_c_detect(a1, a2, map, &overlap)){
+                        struct actor_handle_ls *pahl;
+
+                        /* Call appropriate collision handlers */
+
+                        if(a1->collision_groups[map->uid] & a2->groups){
+
+                            for(pahl = a1->actor_handlers[map->uid];
+                                    pahl != NULL; pahl = pahl->next){
+                                if(pahl->groups & a2->groups)
+                                    pahl->actor_handler(a1, a2);
+                            }
+                        }
+
+
+                        if(a2->collision_groups[map->uid] & a1->groups){
+                            for(pahl = a1->actor_handlers[map->uid];
+                                    pahl != NULL; pahl = pahl->next){
+                                if(pahl->groups & a1->groups)
+                                    pahl->actor_handler(a2, a1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 void isomap_ob_handler(struct isomap *map, struct isoactor *actor)

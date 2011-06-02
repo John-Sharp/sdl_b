@@ -7,7 +7,10 @@
 #define WIN_H 460
 #define MAP_W 8
 #define MAP_H 5
-#define FPS 3000
+#define FPS 6500
+#define CTW 5
+#define CTH 5
+
 
 void printgrp(struct isogrp *grp)
 {
@@ -96,6 +99,14 @@ void over_red_handler(struct isoactor *actor, struct isomap *map,
 
     return;
 }
+
+void actor_hit_handler(struct isoactor *a1, struct isoactor *a2)
+{
+    fprintf(stderr, "There's bin a collision!\n");
+
+    return;
+}
+
    
 
 
@@ -114,18 +125,22 @@ int main(void)
     int carry_on = 1;
     SDL_Event selection;
 
-    engine = isoeng_create(WIN_W, WIN_H);
+    engine = isoeng_create(WIN_W, WIN_H, CTW, CTH);
 
     actor[0] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", testgrp);
+            ACTOR_H, "blob.png",
+            ACTOR_W, ACTOR_H, "c_blob.png", testgrp);
     actor[1] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", testgrp);
+            ACTOR_H, "blob.png", 
+            ACTOR_W, ACTOR_H, "c_blob.png", testgrp);
     actor[2] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", testgrp2);
+            ACTOR_H, "blob.png", 
+            ACTOR_W, ACTOR_H, "c_blob.png", testgrp2);
     actor[3] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", testgrp | testgrp2);
+            ACTOR_H, "blob.png", 
+            ACTOR_W, ACTOR_H, "c_blob.png", testgrp | testgrp2);
     actor[4] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", 1 << 4);
+            ACTOR_H, "blob.png", ACTOR_W, ACTOR_H, "c_blob.png", 1 << 4);
 
 
     grp = isoeng_get_group(engine, testgrp);
@@ -142,22 +157,25 @@ int main(void)
     isoeng_del_actor(engine, actor[0]);
     isoeng_del_actor(engine, actor[4]);
 
+    actor[0] = isoeng_new_actor(engine, ACTOR_W,
+            ACTOR_H, "blob.png", ACTOR_W, ACTOR_H, "c_blob.png", 1<<5);
+    actor[0]->px = actor[0]->x = 25;
+    actor[0]->py = actor[0]->y = 14.5;
+
     actor[4] = isoeng_new_actor(engine, ACTOR_W,
-            ACTOR_H, "blob.png", 1<<4);
+            ACTOR_H, "blob.png", ACTOR_W, ACTOR_H, "c_blob.png", 1<<4);
 
     printgrp(grp);
 
-    map = isomap_test(1 << 4);
+    map = isomap_test((1 << 4) | (1<<5));
+
+    set_actor_handler(actor[4], map, 1<<5, actor_hit_handler);
 
     actor[4]->x = actor[4]->px = 0;
     actor[4]->y = actor[4]->py = 0;
 
     actor[4]->i_handler = player_input_handler;
     set_map_handler(actor[4], map, "a", over_red_handler);
-
-
-
-
 
     start_t = SDL_GetTicks();
 
