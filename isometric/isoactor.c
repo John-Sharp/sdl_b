@@ -121,7 +121,6 @@ static void isoactor_load_cfields(struct isoactor *actor, int ctw,
             memset(actor->cfields[index], 0, ba_h *
                     sizeof(*(actor->cfields[index])));
 
-
             for(i = 0; i < ba_h; i++){
                 for(j = 0; j < ba_w; j++){
                     if(ba[i][j] > ctw * cth / 2.){
@@ -543,13 +542,13 @@ int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
     int ctw = a1->ctw;
     int cth = a1->cth;
 
-    for(i = 0; i < overlap->y.overlap / cth; i++){
+    for(i = 0; i < floor(overlap->y.overlap / cth); i++){
         unsigned long bf1 = a1->cfields[map->uid]
-            [i + (int)(overlap->y.a1_offset/cth)];
+            [i + (int)floor((overlap->y.a1_offset/cth))];
         unsigned long bf2 = a2->cfields[map->uid]
-            [i + (int)(overlap->y.a2_offset/cth)];
+            [i + (int)floor((overlap->y.a2_offset/cth))];
 
-        bf1 = (bf1 << (int)(overlap->x.a1_offset/ctw)) /* Shift the bit-field
+        bf1 = (bf1 << ((int)(overlap->x.a1_offset/ctw))) /* Shift the bit-field
                                                           so the left-most 
                                                           figure corresponds 
                                                           to the start of the
@@ -561,12 +560,13 @@ int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
                                                               wide as the 
                                                               overlap */
 
-        bf2 = (bf2 << (int)(overlap->x.a2_offset/ctw))
+        bf2 = (bf2 << ((int)(overlap->x.a2_offset/ctw)))
             & ((~0) << (CHAR_BIT * sizeof(unsigned long)
                         - (int)(overlap->x.overlap/ctw)));
 
-        if(bf1 & bf2)
+        if(bf1 & bf2){
             return 1;
+        }
     }
 
     return 0;

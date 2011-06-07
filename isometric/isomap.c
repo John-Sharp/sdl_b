@@ -151,20 +151,25 @@ int isomap_from_string(struct isomap *map, const char *k, const char *m)
 
     for(j = 0; j < map->h; j++)
         for(i = 0; i < map->w; i++){
-            /* The vector going from the center of one tile to the 
-             * center of the next tile in the map's x-direction
-             * is given by (map->tw/2, map->th/2).
+            /* An SDL_Surface has the y-axis pointing down.
+             * The vector going from the center of one tile to the 
+             * center of the next tile in the map surface's x-direction
+             * is given by mx = (map->tw/2, -map->th/2).
              * The vector going from the center of one tile to the
-             * center of the next tile in the map's y-direction
-             * is given by (-map->tw/2, map->th/2).
+             * center of the next tile in the map surfaces's y-direction
+             * is given by my = (-map->tw/2, -map->th/2).
              * The tiles belong in the position 
              * with center i * mx + j * my.
              * In addition to this a common translation in the 
              * screen's x-direction of (map->tw/2 * (-1 + map->h), 0)
              * should be made to ensure that the left hand side of the
-             * map is visible in the screen area */
+             * map is visible in the screen area.
+             * Finally, a translation of (0, map->th / 2 * (-1 + map->h
+             *  -1 + map-w) is neded to ensure that the top of the map
+             *  is visible in the screen area. */
             dst.x = map->tw/2 * (i - j - 1 + map->h);
-            dst.y = map->h * map->th + map->th/2 - map->th/2 * (i + j); 
+            dst.y = -map->th/2 * (i + j + 2 - map->h
+                    - map->w);
 
 #ifdef DEBUG_MODE
             fprintf(stderr, "Center of tile: %d %d ", dst.x, dst.y);
