@@ -5,8 +5,8 @@
 #define ACTOR_H 29
 #define WIN_W 460
 #define WIN_H 460
-#define MAP_W 8
-#define MAP_H 5
+#define MAP_W 6
+#define MAP_H 3
 #define FPS 6500
 #define CTW 5
 #define CTH 5
@@ -75,12 +75,16 @@ struct isomap *isomap_test(unsigned int groups)
 
     map = isomap_create(&map_rect, groups, MAP_W, MAP_H,
             50, "test.png",
-            "abc", "aacccccc"
-                   "accccccc"
+            "abc", "accccccc"
+                   "cccccccc"
+                   "cccccccc"
+                   "cccccccc"
                    "cccccccc"
                    "cccccccc"
                    "ccccccca",
             "abc", "aacccccc"
+                   "accccccc"
+                   "accccccc"
                    "accccccc"
                    "cccccccc"
                    "cccccccc"
@@ -102,7 +106,7 @@ void over_red_handler(struct isoactor *actor, struct isomap *map,
 
 void actor_hit_handler(struct isoactor *a1, struct isoactor *a2)
 {
-    fprintf(stderr, "There's bin a collision!\n");
+    //fprintf(stderr, "There's bin a collision!\n");
 
     return;
 }
