@@ -10,7 +10,7 @@
 
 #define ACTOR_W 111
 #define ACTOR_H 68
-#define NUM_SHEEPS 6
+#define NUM_SHEEPS 5
 #define C_ACTOR_W 154
 #define C_ACTOR_H 94
 #define WIN_W 720
@@ -38,6 +38,9 @@ void sheep_i_handler(struct isoactor *actor, struct isoeng *eng)
 
 void sheep_ob_handler(struct isomap *map, struct isoactor *actor)
 {
+    double rv_x, rv_y, rv_mag, speed;
+    double rv_x_r, rv_y_r;
+    /*
     if(actor->x / map->itw > map->w ||
        actor->x / map->itw < 0){
         actor->x = actor->px;
@@ -46,26 +49,37 @@ void sheep_ob_handler(struct isomap *map, struct isoactor *actor)
         actor->y = actor->py;
         actor->vy = -actor->vy;
     }
+    */
+    rv_x = -actor->coll_point_x + actor->cw / (2);
+    rv_y = -actor->coll_point_y + actor->ch / (2);
+
+    rv_x_r = project_x(map->ir, rv_x, rv_y);
+    rv_y_r = project_y(map->ir, rv_x, rv_y);
+
+    rv_mag = sqrt(rv_x_r * rv_x_r + rv_y_r * rv_y_r);
+    speed = sqrt(actor->vx * actor->vx + actor->vy * actor->vy);
+
+    actor->vx = speed/rv_mag * rv_x_r;
+    actor->vy = speed/rv_mag * rv_y_r;
     return;
 }
 
-struct isomap *sheep_map(unsigned int groups)
+struct isomap *sheep_map(struct isoeng *engine, unsigned int groups)
 {
     SDL_Rect map_rect = { .x = 0, .y = 0, .w = WIN_W, .h = WIN_H};
     char key[] = "abcdef";
-    char map_str[] = "deaaabafaabe"
-                     "abaffaacdefa"
-                     "efdefaaabbdf"
-                     "eeaaaadfafde"
-                     "eeaaaadfafde"
-                     "bcabaffaaffd"
-                     "abaffaacdefa"
-                     "efdefaaabbdf"
-                     "abaffaacdefa"
-                     "deaaabafaabe"
-                     "deaaabafaabe"
-                     "abaffaacdefa"
-                     "bcabaffaaffd";
+    char map_str[] = "aaaaaaaaaaac"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "aaaaaaaaaaaa"
+                     "baaaaaaaaaab";
     char c_map_str[] = "aaaaaaaaaaaa"
                        "aaaaaaaaaaaa"
                        "aaaaaaaaaaaa"
@@ -77,12 +91,13 @@ struct isomap *sheep_map(unsigned int groups)
                        "aaaaaaaaaaaa"
                        "aaaaaaaaaaaa"
                        "aaaaaaaaaaaa"
-                       "aaaaaaaaaaaa";
+                       "baaaaaaaaaab";
 
     struct isomap *map;
 
-    map = isomap_create(&map_rect, groups, MAP_W, MAP_H,
+    map = isomap_create(engine, &map_rect, groups, MAP_W, MAP_H,
             TILE_W, "images/grass.png", key, map_str, key, c_map_str);
+
 
     map->ob_handler = sheep_ob_handler;
 
@@ -105,17 +120,18 @@ int main(void)
     struct isoeng *engine;
     struct isoactor *sheep;
     struct isomap *map;
-    unsigned int shp_grp = 1<<1;
+    unsigned int shp_grp = ((unsigned int)1)<<1;
     int c_frame = 0, ef = 0;
     int carry_on = 1;
 
     Uint32 start_t, curr_t;
     double elapsed_frames = 0;
+    int i;
 
     engine = isoeng_create(WIN_W, WIN_H, CTW, CTH);
-    map = sheep_map(shp_grp);
+    map = sheep_map(engine, shp_grp);
 
-    int i;
+    srand(25);
     for(i = 0; i < NUM_SHEEPS; i++){
         double theta = (double)rand();
 

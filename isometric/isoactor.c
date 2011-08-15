@@ -60,7 +60,7 @@ static void isoactor_load_cfields(struct isoactor *actor, int ctw,
     int (*ba)[ba_w]; /* Bitmask array */
     Uint32 maskcolour;
 
-    if(ba_w > sizeof(*(actor->cfields[0])) * CHAR_BIT){
+    if(ba_w > ISO_BFBW){
         fprintf(stderr, "Error! Collision tilemap is too wide "
                 "for bitmask variable. \n");
         return;
@@ -103,7 +103,7 @@ static void isoactor_load_cfields(struct isoactor *actor, int ctw,
             for(i = 0; i < actor->ch; i++){
                 for(j = 0; j < actor->cw; j++){
                     if(get_pixel(image, j + windex * actor->cw,
-                                i + hindex * actor->ch) == maskcolour){
+                                (actor->ch - 1 - i) + hindex * actor->ch) == maskcolour){
                         ba[i / cth][j / ctw] += 1;
                     }
                 }
@@ -119,7 +119,7 @@ static void isoactor_load_cfields(struct isoactor *actor, int ctw,
                 return;
             }
             memset(actor->cfields[index], 0, ba_h *
-                    sizeof(*(actor->cfields[index])));
+                    sizeof(isobf_t));
 
             for(i = 0; i < ba_h; i++){
                 for(j = 0; j < ba_w; j++){
@@ -127,8 +127,8 @@ static void isoactor_load_cfields(struct isoactor *actor, int ctw,
                         /* This line produces the binary number
                          * 00010000000 where there are j 0's before
                          * the leading 1 */
-                        actor->cfields[index][i] |= 1UL << 
-                            (CHAR_BIT * sizeof(*(actor->cfields[index])) - j - 1);
+                        actor->cfields[index][i] |= (isobf_t)1 << 
+                            (ISO_BFBW - j - 1);
 #ifdef DEBUG_MODE
                         fprintf(stderr, "1");
 #endif
@@ -297,8 +297,7 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename,
 
 static struct map_handle_ls *map_handler_add(struct map_handle_ls *ls,
         struct isomap *map, const char *tiles,
-        void (*map_handler)(struct isoactor *, struct isomap *,
-                        unsigned int tile, enum isoside))
+        void (*map_handler)(struct isoactor *, struct isomap *))
 {
     struct map_handle_ls *hp;
 
@@ -330,7 +329,7 @@ static struct map_handle_ls *map_handler_del(struct map_handle_ls *ls,
                                          struct isomap *map,
                                          unsigned int tiles,
                         void (*map_handler)(struct isoactor *,
-                            struct isomap *, unsigned int, enum isoside))
+                                            struct isomap *))
 {
     if(ls == NULL){
         return NULL;
@@ -357,8 +356,7 @@ static struct map_handle_ls *map_handler_del(struct map_handle_ls *ls,
 void set_map_handler(struct isoactor *actor, struct isomap *map, 
         const char *tiles,
         void (*handler)(struct isoactor *,
-                        struct isomap *,
-                        unsigned int, enum isoside))
+                        struct isomap *))
 {
 
     actor->map_handlers[map->uid] = 
@@ -372,8 +370,7 @@ void set_map_handler(struct isoactor *actor, struct isomap *map,
 void uset_map_handler(struct isoactor *actor, struct isomap *map, 
         const char *tiles,
         void (*handler)(struct isoactor *,
-                        struct isomap *,
-                        unsigned int, enum isoside))
+                        struct isomap *))
 {
     unsigned int tilemask = 0;
 
@@ -395,7 +392,7 @@ void uset_map_handler(struct isoactor *actor, struct isomap *map,
 
 
 static struct actor_handle_ls *actor_handler_add(struct actor_handle_ls *ls,
-        unsigned int groups, void (*actor_handler)(struct isoactor *,
+        isobf_t groups, void (*actor_handler)(struct isoactor *,
             struct isoactor *))
 {
     struct actor_handle_ls *hp;
@@ -417,7 +414,7 @@ static struct actor_handle_ls *actor_handler_add(struct actor_handle_ls *ls,
 }
 
 static struct actor_handle_ls *actor_handler_del(struct actor_handle_ls *ls,
-        unsigned int groups, void (*actor_handler)(struct isoactor *,
+        isobf_t groups, void (*actor_handler)(struct isoactor *,
             struct isoactor *))
 {
     if(ls == NULL){
@@ -441,7 +438,7 @@ static struct actor_handle_ls *actor_handler_del(struct actor_handle_ls *ls,
 }
 
 void set_actor_handler(struct isoactor *actor, struct isomap *map,
-        unsigned int groups,
+        isobf_t groups,
         void (*handler)(struct isoactor *, struct isoactor *))
 {
     actor->actor_handlers[map->uid] = 
@@ -454,7 +451,7 @@ void set_actor_handler(struct isoactor *actor, struct isomap *map,
 }
 
 void uset_actor_handler(struct isoactor *actor, struct isomap *map,
-        unsigned int groups,
+        isobf_t groups,
         void (*handler)(struct isoactor *, struct isoactor *))
 {
     struct actor_handle_ls *hp;
@@ -535,6 +532,171 @@ int isoactor_calc_overlap(struct isoactor *a1, struct isoactor *a2,
     return 1;
 }
 
+void print_overlap(struct isoactor_overlap *overlap)
+{
+    fprintf(stderr, "Overlap is: a1 offset: (%f, %f)\n"
+            "   a2 offset: (%f, %f)\n"
+            "   overlap: (%f, %f)\n",
+            overlap->x.a1_offset, overlap->y.a1_offset,
+            overlap->x.a2_offset, overlap->y.a2_offset, 
+            overlap->x.overlap, overlap->y.overlap);
+    return;
+}
+
+
+int isoactor_map_calc_overlap(struct isoactor *a, struct isomap *map,
+        struct isoactor_overlap *overlap)
+{
+    double ax = project_a_x(map->ri, a->x, a->y);
+    double ay = project_a_y(map->ri, a->x, a->y);
+
+    if(!isoactor_calc_overlap_l(ax - (double)(a->cw/2),
+            ax + (double)(a->cw)/2,
+            0, map->rw, &(overlap->x))){
+        return 0;
+    }
+
+    if(!isoactor_calc_overlap_l(ay - (double)(a->ch/2),
+            ay + (double)(a->ch/2),
+            0, map->rh, &(overlap->y))){
+        return 0;
+    }
+
+    return 1;
+}
+
+/*Does a left-shift by 'bitshift' bits of the unsigned long array
+ * pointed to by 'n', with 'elements' elements */
+void shiftl(isobf_t *n, unsigned int elements, unsigned int bitshift)
+{
+    int i;
+
+    for(i = 0; i < elements; i++){
+        n[i] <<= bitshift;
+
+        if(i != elements - 1){
+            isobf_t o;
+            o = (n[i+1] & ((~0) << (CHAR_BIT * sizeof(o) - bitshift)));
+            o >>= (CHAR_BIT * sizeof(o) - bitshift);
+            n[i] |= o;
+        }
+    }
+}
+
+int isoactor_map_bw_c_detect(struct isoactor *a, struct isomap *map,
+        unsigned int index, struct isoactor_overlap *overlap)
+{
+    int i;
+    int ctw = a->ctw;
+    int cth = a->cth;
+#ifdef DEBUG_MODE
+    isobf_t bf1a[20];
+    isobf_t bf2a[20];
+    int truth = 0;
+#endif
+    /* A row of the bitfield of the map can be MAP_BF_W unsigned
+     * longs wide. fs gives the unsigned long where the overlap
+     * region with the actor begins. fe give the first unsigned
+     * long after the end of the overlap region */
+    unsigned int fs, fe;
+
+    for(i = 0; i < floor(overlap->y.overlap / cth); i++){
+        isobf_t bf1 = a->cfields[a->show_sprite]
+            [i + (int)floor((overlap->y.a1_offset/cth))];
+
+        isobf_t *bf2;
+        isobf_t *bfp2 = map->cfields[index]
+            +(MAP_BF_W * (i + (int)floor((overlap->y.a2_offset/cth))));
+
+        bf1 = (bf1 << ((int)(overlap->x.a1_offset/ctw))) /* Shift the bit-field
+                                                          so the left-most 
+                                                          figure corresponds 
+                                                          to the start of the
+                                                          overlap */
+
+            & ((~0) << (ISO_BFBW
+                        - (int)(overlap->x.overlap/ctw))); /* Trim the bitfield
+                                                              so that it as
+                                                              wide as the 
+                                                              overlap */
+
+        /* Element of bfp2 where overlap area will start */
+        fs = (int)floor(overlap->x.a2_offset/
+                (ctw * ISO_BFBW));
+
+        /* Element of bfp2 where overlap area will end */
+        fe = (int)ceil((overlap->x.a2_offset + overlap->x.overlap)/
+                (ctw * ISO_BFBW));
+
+        bf2 = malloc(sizeof(*bf2) * (fe - fs));
+        memcpy(bf2, bfp2 + fs, sizeof(isobf_t) * (fe - fs));
+
+        /* Shift the bit-field so the left-most figure corresponds
+         * to the start of the overlap */
+        shiftl(bf2, fe - fs, (int)(overlap->x.a2_offset/ctw));
+
+        /* Trim the bitfield */
+        *bf2 &= ((~0) << (ISO_BFBW
+                        - (int)(overlap->x.overlap/ctw)));
+
+#ifdef DEBUG_MODE
+        bf1a[i] = bf1;
+        bf2a[i] = *bf2;
+#endif
+        
+
+        if(bf1 & *bf2){
+
+#ifdef DEBUG_MODE
+            truth = 1;
+#endif
+            int j;
+            isobf_t coll_zone = bf1 & *bf2;
+            free(bf2);
+            a->coll_point_y = (i + floor((overlap->y.a1_offset/cth))) * a->ctw;
+            for(j = 0; j <= ISO_BFBW; j++){
+                if(coll_zone & ((isobf_t)1 << j)){
+                    a->coll_point_x = (ISO_BFBW - j
+                            + floor((overlap->x.a1_offset/ctw))) * a->ctw;
+                    return 1;
+                }
+            }
+
+
+        }
+        free(bf2);
+    }
+
+    /*Bit of code that prints the bits that are in the bit-fields
+     * of the overlap areas */
+    /*
+#ifdef DEBUG_MODE
+    if(truth){
+        fprintf(stderr, "fs: %d fe: %d\n", fs, fe);
+        print_overlap(overlap);
+
+        fprintf(stderr, "bf1: \n");
+        for(i = floor(overlap->y.overlap / cth) - 1; i >= 0; i--){
+            printbitssimple(bf1a[i]);
+            fprintf(stderr, "\n");
+        }
+        fprintf(stderr, "bf2: \n");
+
+        for(i = floor(overlap->y.overlap / cth) - 1; i >= 0; i--){
+            printbitssimple(bf2a[i]);
+            fprintf(stderr, "\n");
+        }
+
+        exit(0);
+        
+    }
+#endif
+*/
+
+    return 0;
+}
+
+
 int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
         struct isomap *map, struct isoactor_overlap *overlap)
 {
@@ -543,9 +705,9 @@ int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
     int cth = a1->cth;
 
     for(i = 0; i < floor(overlap->y.overlap / cth); i++){
-        unsigned long bf1 = a1->cfields[map->uid]
+        isobf_t bf1 = a1->cfields[a1->show_sprite]
             [i + (int)floor((overlap->y.a1_offset/cth))];
-        unsigned long bf2 = a2->cfields[map->uid]
+        isobf_t bf2 = a2->cfields[a2->show_sprite]
             [i + (int)floor((overlap->y.a2_offset/cth))];
 
         bf1 = (bf1 << ((int)(overlap->x.a1_offset/ctw))) /* Shift the bit-field
@@ -554,14 +716,14 @@ int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
                                                           to the start of the
                                                           overlap */
 
-            & ((~0) << (CHAR_BIT * sizeof(unsigned long)
+            & ((~0) << (ISO_BFBW
                         - (int)(overlap->x.overlap/ctw))); /* Trim the bitfield
                                                               so that it as
                                                               wide as the 
                                                               overlap */
 
         bf2 = (bf2 << ((int)(overlap->x.a2_offset/ctw)))
-            & ((~0) << (CHAR_BIT * sizeof(unsigned long)
+            & ((~0) << (ISO_BFBW
                         - (int)(overlap->x.overlap/ctw)));
 
         if(bf1 & bf2){

@@ -4,8 +4,8 @@
  *
  */
 
-#ifndef JMAP_H
-#define JMAP_H
+#ifndef ISOMAP_H
+#define ISOMAP_H
 
 #include <GL/gl.h>
 #include "SDL.h"
@@ -18,15 +18,17 @@
 
 #include "isoeng.h"
 
-
+#define MAX_C_TILE_TYPES 5
 
 struct isomap{
+    struct isoeng *engine; /* Engine this map belongs to */
+
     unsigned int uid;  /* Unique identifier of the map */
 
     SDL_Rect map_rect; /* SDL_Rect describing the position, width
                           and height of map */
 
-    unsigned int groups; /* Groups that are associated with this
+    isobf_t groups; /* Groups that are associated with this
                             map (and should be painted when map
                             is painted */
 
@@ -42,7 +44,14 @@ struct isomap{
 
     char *c_key;        /* Key that translates tile bit-masks
                              to letters */
-    unsigned int *c_map; /* 2D array of collision tile bit-masks */
+    unsigned int *c_map; /* 2D array of collision tile indicies */
+
+    unsigned long *cfields[MAX_C_TILE_TYPES]; /* Array of pointers
+                                                 to arrays that contain
+                                                 the bit-fields of the 
+                                                 collision maps of
+                                                 the various types
+                                                 of collision tile */
 
     SDL_Surface *tilepalette; /* Tile palette image */
 
@@ -69,8 +78,9 @@ void isomap_free(struct isomap *map);
  * the key-string 'k' and the map is described
  * by the order of the letters in the map-string 'm'. Returns
  * a pointer to this map, or NULL if the allocation failed */
-struct isomap *isomap_create(const SDL_Rect *map_rect,
-        double groups, int w, int h, int tw,
+struct isomap *isomap_create(struct isoeng *engine,
+        const SDL_Rect *map_rect,
+        isobf_t groups, int w, int h, int tw,
         const char *filename, const char *k, const char *m,
         const char *ck, const char *cm);
 

@@ -22,21 +22,21 @@ enum isoside{ /* Contains the sides of a tile that can be collided with */
 struct map_handle_ls{ /* A list of map collision handlers */
     struct map_handle_ls *next;
     struct isomap *map;
-    unsigned int tiles; /* Bit-wise OR of all tiles that this collision handler
+    isobf_t tiles; /* Bit-wise OR of all tiles that this collision handler
                            should be fired for */
-    void (*map_handler)(struct isoactor *actor, struct isomap *map,
-            unsigned int tile, enum isoside side); /* Pointer to the 
-                                                      collision handler
-                                                      function */
+    void (*map_handler)(struct isoactor *actor, struct isomap *map);
+                           /* Pointer to the 
+                              collision handler
+                              function */
 };
 
 struct actor_handle_ls{ /* A list of actor-actor collision handlers */
     struct actor_handle_ls *next;
-    unsigned int groups; /* Groups that this handler applies to */
+    isobf_t groups; /* Groups that this handler applies to */
     void (*actor_handler)(struct isoactor *a1, struct isoactor *a2);
                                                 /* Pointer to the actor
-                                                 * collision handler
-                                                 * function */
+                                                   collision handler
+                                                   function */
 }; 
 
 struct isoactor_overlap_l{ /* Struct for describing the linear overlap
@@ -73,7 +73,7 @@ struct isoactor{       /* A character in the game */
     GLuint textures[MAX_SPRITES]; /* Array of textures that are this actor's
                                      sprites */
 
-    unsigned int groups;        /* Bit-field of the groups the
+    isobf_t groups;        /* Bit-field of the groups the
                                    actor is a member of */
 
     void (*i_handler)(struct isoactor *, \
@@ -92,7 +92,11 @@ struct isoactor{       /* A character in the game */
 
     int ctw, cth;              /* Width and height of collision tiles
                                   (in pixels) */
-    unsigned long *cfields[MAX_SPRITES];  /* Array of pointers to the
+
+    int coll_point_x, coll_point_y; /* Point in collision sprite that
+                                       has just been collided with */
+
+    isobf_t *cfields[MAX_SPRITES];  /* Array of pointers to the
                                              arrays that contain the 
                                              bit-fields of the
                                              collision maps of the 
@@ -103,7 +107,7 @@ struct isoactor{       /* A character in the game */
                                  * handlers detailing what should be done
                                  * for an actor-actor collision on a certain
                                  * map */
-    unsigned int collision_groups[MAX_MAPS]; /* Bitwise OR of all groups actor
+    isobf_t collision_groups[MAX_MAPS]; /* Bitwise OR of all groups actor
                                                 is primed to detect collisons 
                                                 with for the map */
 };
@@ -130,28 +134,26 @@ struct isoactor *isoactor_create(int w, int h, const char *sprite_filename,
 void set_map_handler(struct isoactor *actor, struct isomap *map, 
         const char *tiles,
         void (*handler)(struct isoactor *,
-                        struct isomap *,
-                        unsigned int, enum isoside));
+                        struct isomap *));
 
 /* Unsets the handler 'handle' that gets fired when 'actor' steps on
  * one of the 'tiles' in 'map' */
 void uset_map_handler(struct isoactor *actor, struct isomap *map, 
         const char *tiles,
         void (*handler)(struct isoactor *,
-                        struct isomap *,
-                        unsigned int, enum isoside));
+                        struct isomap *));
 
 /* Sets an actor-actor collision handler for the actor. The handler
  * is called every time the actor collides with an actor belonging to
  * one of the groups 'groups'. Handler is passed the two actors involved
  * in the collision */
 void set_actor_handler(struct isoactor *actor, struct isomap *map,
-        unsigned int groups,
+        isobf_t groups,
         void (*handler)(struct isoactor *, struct isoactor *));
 
 /* Unsets the actor handler */
 void uset_actor_handler(struct isoactor *actor, struct isomap *map,
-        unsigned int groups,
+        isobf_t groups,
         void (*handler)(struct isoactor *, struct isoactor *));
 
 /* Calculates overlap of collision rectangles of 'a1' and 'a2'. If
@@ -162,9 +164,20 @@ int isoactor_calc_overlap(struct isoactor *a1, struct isoactor *a2,
 
 /* Does a bitwise collision detection for actors 'a1' and 'a2'on
  * 'map', presuming that they overlap as described in 'overlap'.
- * Returns 1 is actors have collided */
+ * Returns 1 if actors have collided */
 int isoactor_bw_c_detect(struct isoactor *a1, struct isoactor *a2,
         struct isomap *map, struct isoactor_overlap *overlap);
+
+
+/* Calculates the overlap of the actor 'a' and the map 'map' */
+int isoactor_map_calc_overlap(struct isoactor *a, struct isomap *map,
+        struct isoactor_overlap *overlap);
+
+/* Does a bitwise collision detection for actor 'a' and tiles of
+ * type 'index' on map 'map', presuming that they overlap as 
+ * described in 'overlap'. Returns 1 if there has been a collision */
+int isoactor_map_bw_c_detect(struct isoactor *a, struct isomap *map,
+        unsigned int index, struct isoactor_overlap *overlap);
 
 /* Paint the actor, on the map 'map'. 'frame' is the frame that the game is 
  * currently on */

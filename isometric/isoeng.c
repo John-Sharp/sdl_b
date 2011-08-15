@@ -12,6 +12,20 @@
 
 static void isogrp_free(struct isogrp *group);
 
+void printbitssimple(unsigned long n)
+{
+	unsigned long i;
+	i = 1UL <<(sizeof(i) * CHAR_BIT - 1);
+
+	while (i > 0) {
+		if (n & i)
+			fprintf(stderr, "1");
+		else
+			fprintf(stderr, "0");
+		i >>= 1;
+	}
+}
+
 void isoeng_free(struct isoeng *engine)
 {
     struct isogrp *p, *s;
@@ -354,7 +368,7 @@ void isoeng_actor_drop(struct isoeng *engine, struct isoactor *actor,
     }
 
     actor->groups ^= (actor->groups & groupnum);
-    printf("now in group: %d", actor->groups);
+    printf("now in group: %d", (int)actor->groups);
 
     return;
 }

@@ -18,8 +18,9 @@ void isomap_free(struct isomap *map)
 
 static int isomap_set_cmap(struct isomap *map, const char *ck, const char *cm);
 
-struct isomap *isomap_create(const SDL_Rect *map_rect,
-        double groups, int w, int h, int tw,
+struct isomap *isomap_create(struct isoeng *engine,
+        const SDL_Rect *map_rect,
+        isobf_t groups, int w, int h, int tw,
         const char *filename, const char *k, const char *m,
         const char *ck, const char *cm)
 {
@@ -35,6 +36,8 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
     map = malloc(sizeof(*map));
     if(!map)
         return NULL;
+
+    map->engine = engine;
 
     map->uid = uid;
     uid++;
@@ -54,12 +57,12 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
     map->ri[1][1] = 1/ sqrt(6);
     map->ri[1][2] = 0;
 
-    map->ir[0][0] = sqrt(2);
+    map->ir[0][0] = 1 / sqrt(2);
     map->ir[0][1] = sqrt(6) / 2;
-    map->ir[0][2] = -map->h * map->tw/2;
-    map->ir[1][0] = -sqrt(2);
-    map->ir[1][1] = -sqrt(6) / 2;
-    map->ir[1][2] = 0;
+    map->ir[0][2] = -map->h * map->tw/2 / sqrt(2);
+    map->ir[1][0] = - 1 / sqrt(2);
+    map->ir[1][1] = sqrt(6) / 2;
+    map->ir[1][2] = map->h * map->tw/2 / sqrt(2);
 
 
     memcpy(&(map->map_rect), map_rect, sizeof(map->map_rect));
@@ -102,6 +105,90 @@ struct isomap *isomap_create(const SDL_Rect *map_rect,
     return map;
 }
 
+static void isomap_load_cfields(struct isomap *map, int ctw, int cth,
+        unsigned int index)
+{
+    int ba_h = ceil(map->rh / cth); /* Height of the bitmask array */
+    int ba_w = ceil(map->rw / ctw); /* Width of the bitmask array */
+    int i, j, x, y;
+
+    float rx, ry; /*  Point in real-space */
+
+    if(ba_w > MAP_BF_W * ISO_BFBW){
+        fprintf(stderr, "Error! Collision map tiles are too wide "
+                "for bitmask array. Please increase ctw.\n");
+        exit(-1);
+    }
+
+    map->cfields[index] = malloc(MAP_BF_W * (ba_h
+                * sizeof(*(map->cfields[index]))));
+    if(!(map->cfields[index])){
+        fprintf(stderr,
+                "Error! Could not allocate memory for "
+                "map collision bit-field\n");
+        return;
+    }
+
+    memset(map->cfields[index], 0, MAP_BF_W * ba_h * sizeof(*(map->cfields[index])));
+
+#ifdef DEBUG_MODE
+                        fprintf(stderr, "Map collision bitmask "
+                                "for index: %d:\n", index);
+#endif
+    for(i = 0; i < ba_h; i++){
+        for(j = 0; j < ba_w; j++){
+            /* Point on the screen we are looking at */
+            x = (j + 0.5) * ctw;
+            y = (i - 0.5) * cth;
+
+            /* Project this point back onto map */
+            rx = project_a_x(map->ir, (float)x, (float)y);
+            ry = project_a_y(map->ir, (float)x, (float)y);
+
+            /* Check if the point we're examining lies outside
+             * the map */
+            if(rx < 0 || rx > map->w * map->itw || ry < 0 ||
+                    ry > map->h * map->itw){
+                /* The index 0 is reserved for bitwise collisions
+                 * where the actor has strayed over the edge of 
+                 * the map */
+                if(index == 0){
+                    /* This line produces the binary number
+                     * 00010000000 where there are j%l_int_bl 0's before
+                     * the leading 1 */
+                    map->cfields[index][MAP_BF_W * i + (int)floor(j/ISO_BFBW)]
+                        |= (isobf_t)1 <<
+                        ( ISO_BFBW - j%ISO_BFBW - 1);
+                }
+            }else{
+                unsigned char (*map_ptr)[map->w] = (unsigned char(*)[map->w])map->c_map;
+                /* If the tile underlying the sample point is 
+                 * of the same type as the index then mark this
+                 * part of the bitmask */
+                if(map_ptr[(int)(ry/ map->itw)][(int)(rx/map->itw)] == index){
+
+                    map->cfields[index][MAP_BF_W * i + (int)floor(j/ISO_BFBW)]
+                        |= (isobf_t)1 << (ISO_BFBW - j%ISO_BFBW - 1);
+
+                }
+            }
+        }
+    }
+
+#ifdef DEBUG_MODE
+    fprintf(stderr, "Bit map for cmap index: %d\n", index);
+    for(i = ba_h - 1; i >= 0; i--){
+        int j;
+        for(j = 0; j < MAP_BF_W; j++){
+            printbitssimple(map->cfields[index][MAP_BF_W * i + j]);
+        }
+        fprintf(stderr, "\n");
+    }
+#endif
+
+    return;
+}
+
 static int isomap_set_cmap(struct isomap *map, const char *ck, const char *cm)
 {
     map->c_map = malloc(sizeof(*(map->c_map)) * strlen(cm));
@@ -113,15 +200,27 @@ static int isomap_set_cmap(struct isomap *map, const char *ck, const char *cm)
 
     strcpy(map->c_key, ck);
 
-    int i = 0;
+    int i, j;
+    int z = 0;
     int index;
-    for(i = 0; i < strlen(cm); i++){
-        index = ((strchr(ck, cm[i]) - ck) / sizeof(unsigned char));
-        map->c_map[i] = 1 << index;
+    unsigned char (*map_ptr)[map->w] = (unsigned char(*)[map->w])map->c_map;
+
+    for(j = map->h - 1; j >= 0; j--) 
+        for(i = 0; i < map->w; i++){
+            index = (strchr(ck, cm[z]) - ck) / (sizeof(unsigned char)) + 1;
+            map_ptr[j][i] = index;
+            z++;
+        }
+
+    index = strlen(ck);
+    for(i = 0; i < index; i++){
+        isomap_load_cfields(map, map->engine->ctw, map->engine->cth, i);
     }
+    
 
     return 1;
 }
+
 
 
 int isomap_from_string(struct isomap *map, const char *k, const char *m)
@@ -132,7 +231,7 @@ int isomap_from_string(struct isomap *map, const char *k, const char *m)
     unsigned char (*map_ptr)[map->w] = (unsigned char(*)[map->w])map->map;
     unsigned char index;
 
-    for(j = 0; j < map->h; j++)
+    for(j = map->h - 1; j >= 0; j--) 
         for(i = 0; i < map->w; i++){
             index = (strchr(k, m[z]) - k) / (sizeof(unsigned char));
             map_ptr[j][i] = index;
@@ -253,7 +352,7 @@ void isomap_iterate(struct isomap *map, struct isoeng *engine)
 {
     struct isogrp *map_actors = isoeng_get_group(engine, map->groups);
     struct isols *pg, *qg;
-    int prev_tile, curr_tile;
+    struct isoactor_overlap overlap;
 
     for(pg = map_actors->ls; pg != NULL; pg = pg->next){
 
@@ -268,34 +367,37 @@ void isomap_iterate(struct isomap *map, struct isoeng *engine)
 #endif
             map->ob_handler(map, pg->actor);
         }
-           
-
-
-        prev_tile = pg->actor->px / map->itw +
-            (int)(pg->actor->py / map->itw) % map->w * (map->w);
-        curr_tile = pg->actor->x / map->itw +
-            (int)(pg->actor->y / map->itw) % map->w * (map->w);
-
-        
-
-        /* If over a new tile, check the map collision handlers for this actor
-         * on this map, and call the appropriate one(s) if the current tile
-         * index matches the tile-flag */
-        if(curr_tile != prev_tile){
-
-            
+          
+        /* Get the rectangle that the map is in on the map */    
+        isoactor_map_calc_overlap(pg->actor, map,
+                &overlap);
+        /* Check for collision of the actor's collision bitmap
+         * with the collision bitmap of the outskirts of the map */
+        if(isoactor_map_bw_c_detect(pg->actor, map,
+                0, &overlap)){
 #ifdef DEBUG_MODE
-            fprintf(stderr, "Tile number: %d tile type: %d\n", curr_tile, map->map[curr_tile]);
+            fprintf(stderr, "Actor has strayed outside of the map.\n");
+#endif
+            map->ob_handler(map, pg->actor);
+        }
+
+
+        struct map_handle_ls *ph;
+        int i;
+        for(ph = pg->actor->map_handlers[map->uid];
+                ph != NULL; ph = ph->next){
+            for(i = 1; i <= strlen(map->c_key); i++){
+                if(ph->tiles & (isobf_t)1 << (i-1)){
+
+                    if(isoactor_map_bw_c_detect(pg->actor, map,
+                                i, &overlap)){
+#ifdef DEBUG_MODE
+                        fprintf(stderr, "Collision "
+                                "with tile of type: %d\n", i);
 #endif
 
-            struct map_handle_ls *ph;
-            for(ph = pg->actor->map_handlers[map->uid];
-                    ph != NULL; ph = ph->next){
-                if(ph->tiles & map->c_map[curr_tile]){
-                    /* TODO: Need to work out what side of the tile
-                     * has been hit and pass it to the map handler
-                     * function */
-                    ph->map_handler(pg->actor, map, curr_tile, 0);
+                        ph->map_handler(pg->actor, map);
+                    }
                 }
             }
         }
@@ -315,7 +417,6 @@ void isomap_iterate(struct isomap *map, struct isoeng *engine)
              * one another */
             if(a1->collision_groups[map->uid] & a2->groups ||
                     a2->collision_groups[map->uid] & a1->groups){
-                struct isoactor_overlap overlap;
 
                 /* Check if the actors' simple rectangle overlap
                  * exists */
@@ -355,6 +456,8 @@ void isomap_ob_handler(struct isomap *map, struct isoactor *actor)
 {
     actor->x = actor->px;
     actor->y = actor->py;
+    actor->vx = 0;
+    actor->vy = 0;
 
     return;
 }

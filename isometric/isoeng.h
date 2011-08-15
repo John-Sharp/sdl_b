@@ -15,6 +15,16 @@
 #include <SDL_image.h>
 
 
+/* Type that is used to store the bit-fields in the
+ * isoeng */
+typedef unsigned long isobf_t;
+/* How many 'isoeng_bf_t's are used to store one row
+ * of the bit-fields for the map bit-fields */
+#define MAP_BF_W 4
+/* Width, in bits, of the 'isobf_t' type */
+#define ISO_BFBW (CHAR_BIT * sizeof(isobf_t))
+
+
 /* returns a number that is  a number, 'a', converted into the nearest number
  * that is a whole power of 2 (rounding up) */ 
 #define mkp2(a) (int)powf(2.0, ceilf(logf((float)a)/logf(2.0)))
@@ -108,4 +118,5 @@ void isoeng_actor_drop(struct isoeng *engine, struct isoactor *actor,
 void isoeng_actor_add(struct isoeng *engine, struct isoactor *actor,
         unsigned int groupnum);
 
+void printbitssimple(unsigned long n);
 #endif
